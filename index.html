@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Paseo (Leaflet + Mapillary) - Modo Cinta</title>
+  <title>Paseo (Leaflet + Mapillary) - Web Cinta</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link href="./mapillary.min.css" rel="stylesheet" />
@@ -32,143 +32,86 @@
     .mini { font-size: 12px; color:#6b7280; }
 
     #status { margin-top: 10px; font-size: 13px; color: #374151; line-height: 1.35; white-space: pre-line; }
-    #note { margin-top: 6px; font-size: 12px; color: #6b7280; line-height: 1.35; }
+    #note { margin-top: 6px; font-size: 12px; color:#6b7280; line-height: 1.35; }
 
     #map { height: 100%; }
     #viewerWrap { position: relative; height: 100%; background: #111; }
     #viewer { height: 100%; background: #111; }
 
-    /* Bloqueo de interacción (para “fijar cámara”) */
-    #viewerLockOverlay {
-      position:absolute; inset:0;
-      display:none;
-      background: rgba(0,0,0,0);
-      z-index: 50;
-    }
+    /* Bloqueo interacción */
+    #viewerLockOverlay { position:absolute; inset:0; display:none; background: rgba(0,0,0,0); z-index: 50; }
     #viewerLockedHint {
       position:absolute; left: 12px; bottom: 12px;
-      background: rgba(0,0,0,0.55);
-      color:#fff; padding:8px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      display:none;
-      z-index: 60;
+      background: rgba(0,0,0,0.55); color:#fff; padding:8px 10px;
+      border-radius: 12px; font-size: 12px; display:none; z-index: 60;
     }
 
-    /* Modo cinta: ocultar panel de mapa */
-    .treadmill #left { display:none; }
-    .treadmill #wrap { grid-template-columns: 1fr; }
+    /* ====== MODO AUTO (solo cuando pulsas Auto) ====== */
+    body.autoUI #left { display:none; }
+    body.autoUI #wrap { grid-template-columns: 1fr; }
 
-    /* ====== Títulos UX ====== */
-    .sectionTitle{
-      margin-top:10px;
-      font-size:12px;
-      font-weight:900;
-      color:#111827;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
-    .sectionHint{
-      font-size:12px;
-      color:#6b7280;
-      font-weight:600;
-    }
-
-    /* ====== Recomendadas (compacto) ====== */
-    .recRow{
-      margin-top:10px;
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-      background:#fff;
-      border:1px solid #e5e7eb;
-      border-radius:14px;
-      padding:10px;
-    }
-    .recRow select{ flex:1; min-width: 240px; }
-    .btnSmall{
-      padding:10px 12px;
-      border-radius:10px;
-      font-weight:900;
-      cursor:pointer;
-      border:0;
-    }
-    .btnSmall.primary{ background:#2563eb; color:#fff; }
-    .btnSmall.secondary{ background:#e5e7eb; color:#111827; }
-
-    /* ====== HUD flotante en visor (para modo cinta) ====== */
+    /* HUD en visor (solo auto) */
     #hud {
-      position:absolute;
-      left:12px; top:12px;
-      z-index: 70;
+      position:absolute; left:12px; top:12px; z-index: 70;
       width: min(420px, calc(100% - 24px));
       display:none;
     }
+    body.autoUI #hud { display:block; }
     .hudBox{
       background: rgba(0,0,0,0.55);
-      color:#fff;
-      border-radius: 14px;
+      color:#fff; border-radius: 14px;
       padding: 10px 12px;
       backdrop-filter: blur(6px);
     }
-    .hudTitle{
-      font-size: 12px;
-      font-weight: 900;
-      opacity: 0.95;
-      margin-bottom: 6px;
-    }
-    .hudLine{
-      font-size: 12px;
-      line-height: 1.35;
-      white-space: pre-line;
-    }
-    .progressBar{
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.18);
-      overflow:hidden;
-      margin-top: 8px;
-    }
-    .progressFill{
-      height:100%;
-      width:0%;
-      background: rgba(255,255,255,0.9);
-      border-radius: 999px;
-    }
+    .hudTitle{ font-size: 12px; font-weight: 900; opacity: 0.95; margin-bottom: 6px; }
+    .hudLine{ font-size: 12px; line-height: 1.35; white-space: pre-line; }
+    .progressBar{ height: 8px; border-radius: 999px; background: rgba(255,255,255,0.18); overflow:hidden; margin-top: 8px; }
+    .progressFill{ height:100%; width:0%; background: rgba(255,255,255,0.9); border-radius: 999px; }
 
-    /* ====== MiniMap flotante (solo modo cinta) ====== */
+    /* MiniMap flotante (solo auto) */
     #miniMapWrap{
-      position:absolute;
-      right:12px; bottom:12px;
-      width: 280px;
-      height: 190px;
-      z-index: 80;
-      display:none;
-      border-radius: 16px;
-      overflow:hidden;
+      position:absolute; right:12px; bottom:12px;
+      width: 280px; height: 190px;
+      z-index: 80; display:none;
+      border-radius: 16px; overflow:hidden;
       box-shadow: 0 10px 30px rgba(0,0,0,0.35);
       border: 1px solid rgba(255,255,255,0.18);
       background:#111;
     }
-    #miniMap{
-      width:100%;
-      height:100%;
-    }
+    body.autoUI #miniMapWrap{ display:block; }
+    #miniMap{ width:100%; height:100%; }
     #miniMapLabel{
-      position:absolute;
-      left:10px; top:10px;
-      z-index: 90;
-      background: rgba(0,0,0,0.55);
-      color:#fff;
-      padding:6px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 900;
+      position:absolute; left:10px; top:10px; z-index: 90;
+      background: rgba(0,0,0,0.55); color:#fff;
+      padding:6px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 900;
       pointer-events: none;
     }
+
+    /* Botón PARAR flotante (solo auto) */
+    #stopAutoBtn{
+      position:absolute; left:12px; bottom:12px; z-index: 95;
+      display:none;
+      background:#dc2626; color:#fff;
+      padding:12px 14px; border-radius:999px;
+      font-weight: 900; border:0; cursor:pointer;
+    }
+    body.autoUI #stopAutoBtn { display:block; }
+
+    /* Recomendadas compactas */
+    .sectionTitle{
+      margin-top:10px; font-size:12px; font-weight:900; color:#111827;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .sectionHint{ font-size:12px; color:#6b7280; font-weight:600; }
+    .recRow{
+      margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:10px;
+    }
+    .recRow select{ flex:1; min-width: 240px; }
+    .btnSmall{ padding:10px 12px; border-radius:10px; font-weight:900; cursor:pointer; border:0; }
+    .btnSmall.primary{ background:#2563eb; color:#fff; }
+    .btnSmall.secondary{ background:#e5e7eb; color:#111827; }
 
     @media (max-width: 900px) {
       #wrap { grid-template-columns: 1fr; grid-template-rows: auto 260px 1fr; }
@@ -182,9 +125,8 @@
 <body>
   <div id="wrap">
     <div id="left">
-      <header>
+      <header id="controlsHeader">
 
-        <!-- ====== Ruta libre ====== -->
         <div class="sectionTitle">
           <span>Ruta libre</span>
           <span class="sectionHint">Escribe De/A y pulsa “Cargar ruta”</span>
@@ -192,7 +134,7 @@
 
         <div class="row">
           <input id="from" placeholder="De (ej: madrid atocha)" value="madrid atocha" />
-          <input id="to" placeholder="A (ej: madrid puerta alcala)" value="madrid puerta alcala" />
+          <input id="to" placeholder="A (ej: madrid puerta alcala)" value="madrid puerta del sol" />
         </div>
 
         <div class="btnrow">
@@ -232,15 +174,9 @@
             Bloquear vista (no girar)
           </label>
 
-          <label class="badge" style="display:flex;gap:8px;align-items:center;cursor:pointer;">
-            <input id="treadmillMode" type="checkbox" />
-            Modo cinta (ocultar panel)
-          </label>
-
           <button class="secondary" id="saveProfile" title="Guarda velocidad/zancada/objetivo">Guardar perfil</button>
         </div>
 
-        <!-- ====== Recomendadas (compacto) ====== -->
         <div class="sectionTitle">
           <span>Rutas recomendadas</span>
           <span class="sectionHint">≈30 min · Mapillary</span>
@@ -255,7 +191,7 @@
         <div id="status">Escribe De/A y pulsa “Cargar ruta”.</div>
         <div id="note">
           - Auto avanza por metros reales + tiempo real (cinta).<br/>
-          - En modo cinta verás un mini-mapa flotante con tu progreso.
+          - En Auto se oculta todo y quedan: fotos, mini-mapa, tiempos y “Parar”.
         </div>
       </header>
 
@@ -265,7 +201,7 @@
     <div id="viewerWrap">
       <div id="viewer"></div>
 
-      <!-- HUD (se muestra en modo cinta para ver lo que falta) -->
+      <!-- HUD (solo en autoUI) -->
       <div id="hud">
         <div class="hudBox">
           <div class="hudTitle" id="hudTitle">Ruta</div>
@@ -274,11 +210,13 @@
         </div>
       </div>
 
-      <!-- MiniMap (se muestra en modo cinta para ver por dónde vas) -->
+      <!-- MiniMap (solo en autoUI) -->
       <div id="miniMapWrap">
         <div id="miniMapLabel">Mapa</div>
         <div id="miniMap"></div>
       </div>
+
+      <button id="stopAutoBtn">⛔ PARAR</button>
 
       <div id="viewerLockOverlay"></div>
       <div id="viewerLockedHint">Vista bloqueada</div>
@@ -299,7 +237,7 @@
     const IMAGES_PER_POINT = 10;
     const MAX_IMAGES_TOTAL = 140;
 
-    // ========= RUTAS RECOMENDADAS (A→B por coordenadas) =========
+    // ========= RUTAS RECOMENDADAS =========
     const RECOMMENDED = [
       {
         id: "valencia_turia",
@@ -327,25 +265,17 @@
       }
     ];
 
-    // ========= “BD” LOCAL (localStorage) =========
+    // ========= localStorage =========
     const LS_KEYS = {
       profile: "walksim_profile_v1",
       lastRoute: "walksim_lastRoute_v1",
       sessions: "walksim_sessions_v1"
     };
-
     function loadJSON(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return fallback;
-        return JSON.parse(raw);
-      } catch {
-        return fallback;
-      }
+      try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+      catch { return fallback; }
     }
-    function saveJSON(key, value) {
-      localStorage.setItem(key, JSON.stringify(value));
-    }
+    function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 
     // ========= UI =========
     const fromEl = document.getElementById("from");
@@ -353,6 +283,7 @@
     const goEl = document.getElementById("go");
     const stopEl = document.getElementById("stop");
     const autoEl = document.getElementById("auto");
+    const stopAutoBtn = document.getElementById("stopAutoBtn");
 
     const speedEl = document.getElementById("speed");
     const speedValEl = document.getElementById("speedVal");
@@ -365,7 +296,6 @@
     const goalValueEl = document.getElementById("goalValue");
 
     const lockViewEl = document.getElementById("lockView");
-    const treadmillModeEl = document.getElementById("treadmillMode");
     const saveProfileEl = document.getElementById("saveProfile");
 
     const statusEl = document.getElementById("status");
@@ -379,15 +309,11 @@
     const prefillRecommendedEl = document.getElementById("prefillRecommended");
 
     // HUD
-    const hudEl = document.getElementById("hud");
     const hudTitleEl = document.getElementById("hudTitle");
     const hudTextEl = document.getElementById("hudText");
-    const hudBarEl = document.getElementById("hudBar");
+    const hudBarEl  = document.getElementById("hudBar");
 
-    // MiniMap
-    const miniMapWrapEl = document.getElementById("miniMapWrap");
-
-    // ========= LEAFLET (map grande) =========
+    // ========= Leaflet (map grande) =========
     const map = L.map("map").setView([40.4168, -3.7038], 13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
@@ -397,31 +323,18 @@
     let routeLine = null;
     let marker = null;
 
-    // ========= LEAFLET (mini map) =========
-    const miniMap = L.map("miniMap", {
-      zoomControl: false,
-      attributionControl: false,
-      dragging: true,
-      scrollWheelZoom: true,
-      doubleClickZoom: true,
-      boxZoom: true,
-      keyboard: true,
-      tap: true
-    }).setView([40.4168, -3.7038], 13);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19
-    }).addTo(miniMap);
+    // ========= Leaflet (mini map) =========
+    const miniMap = L.map("miniMap", { zoomControl:false, attributionControl:false }).setView([40.4168, -3.7038], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(miniMap);
 
     let miniRouteLine = null;
     let miniMarker = null;
 
-    // ========= MAPILLARY =========
+    // ========= Mapillary =========
     if (typeof mapillary === "undefined") {
       alert("mapillary no está definido. Revisa mapillary.min.js y mapillary.min.css en la carpeta.");
       throw new Error("mapillary undefined");
     }
-
     const viewer = new mapillary.Viewer({
       container: "viewer",
       accessToken: MAPILLARY_TOKEN,
@@ -436,7 +349,7 @@
     window.addEventListener("load", () => { forceResize(); setTimeout(forceResize, 250); setTimeout(forceResize, 800); });
     window.addEventListener("resize", () => setTimeout(forceResize, 120));
 
-    // ========= HELPERS =========
+    // ========= Helpers =========
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     function currentSpeedMps() { return parseFloat(speedEl.value) / 3.6; }
     function currentStrideM() { return parseFloat(strideEl.value); }
@@ -471,7 +384,7 @@
 
     function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
-    // ========= STATE =========
+    // ========= Estado =========
     let routePoints = [];
     let routeDistanceM = 0;
 
@@ -480,15 +393,8 @@
 
     let walkAbort = false;
     let walking = false;
-
     let walkedMeters = 0;
     let routeInfoText = "";
-
-    // sesión para historial
-    let sessionStartTs = null;
-    let sessionFrom = "";
-    let sessionTo = "";
-    let sessionTarget = { type: "none", value: 0 };
 
     function enableAuto(enabled) { autoEl.disabled = !enabled; }
 
@@ -496,18 +402,6 @@
       const locked = !!lockViewEl.checked;
       viewerLockOverlay.style.display = locked ? "block" : "none";
       viewerLockedHint.style.display = locked ? "block" : "none";
-    }
-
-    function applyTreadmillUI() {
-      const isTread = !!treadmillModeEl.checked;
-      document.body.classList.toggle("treadmill", isTread);
-
-      // En modo cinta: mostramos HUD y miniMap flotante
-      hudEl.style.display = isTread ? "block" : "none";
-      miniMapWrapEl.style.display = isTread ? "block" : "none";
-
-      setTimeout(forceResize, 60);
-      setTimeout(forceResize, 240);
     }
 
     function updateRouteInfoLine() {
@@ -522,31 +416,25 @@
       hudBarEl.style.width = `${clamp(pct || 0, 0, 100)}%`;
     }
 
+    // ✅ Esto es lo que querías: SOLO al dar Auto ocultamos el resto
+    function enterAutoUI() {
+      document.body.classList.add("autoUI");
+      setTimeout(forceResize, 80);
+      setTimeout(forceResize, 250);
+    }
+    function exitAutoUI() {
+      document.body.classList.remove("autoUI");
+      setTimeout(forceResize, 80);
+      setTimeout(forceResize, 250);
+    }
+
     function stopAll(msg = "Parado.") {
       walkAbort = true;
       walking = false;
       modeValEl.textContent = "—";
       setStatus(msg);
       setHud(msg, 0);
-
-      // guardar sesión si estaba activa
-      if (sessionStartTs) {
-        const elapsedSec = (Date.now() - sessionStartTs) / 1000;
-        const sessions = loadJSON(LS_KEYS.sessions, []);
-        sessions.unshift({
-          at: new Date().toISOString(),
-          from: sessionFrom,
-          to: sessionTo,
-          distance_km: routeDistanceM ? +(routeDistanceM/1000).toFixed(2) : null,
-          walked_km: +(Math.min(walkedMeters, routeDistanceM)/1000).toFixed(2),
-          speed_kmh: +parseFloat(speedEl.value).toFixed(1),
-          stride_m: +parseFloat(strideEl.value).toFixed(2),
-          goal: sessionTarget,
-          elapsed_min: Math.round(elapsedSec/60)
-        });
-        saveJSON(LS_KEYS.sessions, sessions.slice(0, 50));
-        sessionStartTs = null;
-      }
+      exitAutoUI(); // 👈 al parar vuelve a mostrar TODO
     }
 
     function checkGoalAndMaybeStop(elapsedSec) {
@@ -607,11 +495,8 @@
         if (out.length >= MAX_IMAGES_TOTAL) break;
         const p = points[i];
 
-        if (!marker) marker = L.marker([p.lat, p.lon]).addTo(map);
-        marker.setLatLng([p.lat, p.lon]);
-
-        if (!miniMarker) miniMarker = L.circleMarker([p.lat, p.lon], { radius: 6, weight: 2 }).addTo(miniMap);
-        miniMarker.setLatLng([p.lat, p.lon]);
+        if (marker) marker.setLatLng([p.lat, p.lon]);
+        if (miniMarker) miniMarker.setLatLng([p.lat, p.lon]);
 
         setStatus(`${routeInfoText}\nImágenes: ${out.length} · Punto ${i+1}/${points.length}`);
         setHud(`Imágenes: ${out.length} · Punto ${i+1}/${points.length}`, (i/points.length)*100);
@@ -631,9 +516,10 @@
       return out;
     }
 
-    // ========= CARGA DE RUTA (común) =========
+    // ========= Carga de ruta común =========
     async function loadRouteFromCoords(a, b, fromLabel, toLabel) {
       stopAll("Cargando...");
+      // stopAll quita autoUI; aquí queremos estado normal, perfecto
       enableAuto(false);
 
       fromEl.value = fromLabel || `${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}`;
@@ -648,32 +534,29 @@
       updateRouteInfoLine();
 
       const coords = result.coords;
-
-      // dibujar ruta en mapa grande
       const latlngs = coords.map(c => [c[1], c[0]]);
+
+      // mapa grande
       if (routeLine) map.removeLayer(routeLine);
       routeLine = L.polyline(latlngs, { weight: 5 }).addTo(map);
       map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
 
-      // dibujar ruta en miniMap
+      // miniMap
       if (miniRouteLine) miniMap.removeLayer(miniRouteLine);
       miniRouteLine = L.polyline(latlngs, { weight: 4 }).addTo(miniMap);
       miniMap.fitBounds(miniRouteLine.getBounds(), { padding: [10, 10] });
 
-      // puntos (para caminar)
       routePoints = downsample(coords.map(c => ({ lon: c[0], lat: c[1] })), MAX_ROUTE_POINTS);
 
-      // reset
       walkedMeters = 0;
       imageIdx = 0;
       imageQueue = [];
       walking = false;
 
-      // marker inicial (map grande)
+      // markers
       if (!marker) marker = L.marker([routePoints[0].lat, routePoints[0].lon]).addTo(map);
       marker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
 
-      // marker inicial (miniMap)
       if (!miniMarker) miniMarker = L.circleMarker([routePoints[0].lat, routePoints[0].lon], { radius: 6, weight: 2 }).addTo(miniMap);
       miniMarker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
 
@@ -685,9 +568,18 @@
         try { await viewer.moveTo(imageQueue[0]); } catch {}
       }
 
-      const km = (routeDistanceM/1000).toFixed(2);
-      setStatus(`${routeInfoText}\nImágenes encontradas: ${imageQueue.length}\nListo. Pulsa “Auto ⏵”.`);
-      setHud(`Distancia: ${km} km\nImágenes: ${imageQueue.length}\nListo: pulsa Auto ⏵`, 0);
+      setStatus(
+        `${routeInfoText}\n` +
+        `Imágenes encontradas: ${imageQueue.length}\n` +
+        `Listo. Pulsa “Auto ⏵”.`
+      );
+
+      setHud(
+        `Distancia: ${(routeDistanceM/1000).toFixed(2)} km\n` +
+        `Imágenes: ${imageQueue.length}\n` +
+        `Listo: pulsa Auto ⏵`,
+        0
+      );
 
       enableAuto(true);
       modeValEl.textContent = "—";
@@ -700,18 +592,14 @@
       if (!routePoints.length) return;
       if (walking) return;
 
+      enterAutoUI(); // ✅ ocultar TODO solo al pulsar Auto
+
       walking = true;
-      stopAll(routeInfoText + "\nIniciando auto...");
       walkAbort = false;
       modeValEl.textContent = "Auto";
-
       walkedMeters = 0;
 
-      sessionStartTs = Date.now();
-      sessionFrom = fromEl.value.trim();
-      sessionTo = toEl.value.trim();
-      sessionTarget = { type: goalTypeEl.value, value: parseFloat(goalValueEl.value || "0") };
-
+      // primera imagen
       if (imageQueue.length > 0) {
         imageIdx = 0;
         try { await viewer.moveTo(imageQueue[0]); } catch {}
@@ -744,17 +632,10 @@
         const lat = p1.lat + (p2.lat - p1.lat) * t;
         const lon = p1.lon + (p2.lon - p1.lon) * t;
 
-        // mover marcador mapa grande
-        if (!marker) marker = L.marker([lat, lon]).addTo(map);
-        marker.setLatLng([lat, lon]);
-
-        // mover marcador miniMap + centrar suavemente
-        if (!miniMarker) miniMarker = L.circleMarker([lat, lon], { radius: 6, weight: 2 }).addTo(miniMap);
-        miniMarker.setLatLng([lat, lon]);
-        // “follow” en miniMap (sin marear)
+        if (marker) marker.setLatLng([lat, lon]);
+        if (miniMarker) miniMarker.setLatLng([lat, lon]);
         miniMap.panTo([lat, lon], { animate: true, duration: 0.25 });
 
-        // actualizar imagen cada X metros
         if (imageQueue.length > 1) {
           if (walkedMeters % IMAGE_UPDATE_EVERY_M < STEP) {
             imageIdx = Math.min(imageIdx + 1, imageQueue.length - 1);
@@ -770,18 +651,13 @@
 
         const goalHit = checkGoalAndMaybeStop(elapsedSec);
 
-        const statusText =
-          `${routeInfoText}\n` +
-          `Recorrido: ${(done/1000).toFixed(2)} / ${(totalM/1000).toFixed(2)} km (${pct.toFixed(1)}%)\n` +
-          `Falta: ${(remain/1000).toFixed(2)} km · ETA: ${formatTime(etaSec)}\n` +
-          `Tiempo: ${formatTime(elapsedSec)} · Imágenes: ${imageQueue.length} (pos ${imageIdx+1})` +
-          (goalHit ? `\n${goalHit}` : "");
-
-        setStatus(statusText);
+        // ✅ lo que pediste: tiempo, distancia, falta (siempre visible en Auto)
         setHud(
-          `Recorrido: ${(done/1000).toFixed(2)} / ${(totalM/1000).toFixed(2)} km\n` +
+          `Tiempo: ${formatTime(elapsedSec)}\n` +
+          `Recorrido: ${(done/1000).toFixed(2)} km\n` +
           `Falta: ${(remain/1000).toFixed(2)} km · ETA: ${formatTime(etaSec)}\n` +
-          `Tiempo: ${formatTime(elapsedSec)} · Imágenes: ${imageQueue.length}`,
+          `Fotos: ${imageQueue.length} (pos ${imageIdx+1})` +
+          (goalHit ? `\n${goalHit}` : ""),
           pct
         );
 
@@ -801,7 +677,7 @@
       }
     }
 
-    // ========= EVENTS =========
+    // ========= Eventos =========
     speedEl.addEventListener("input", () => {
       speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
       if (routeDistanceM > 0) {
@@ -819,19 +695,13 @@
       saveJSON(LS_KEYS.profile, getProfileFromUI());
     });
 
-    treadmillModeEl.addEventListener("change", () => {
-      applyTreadmillUI();
-      saveJSON(LS_KEYS.profile, getProfileFromUI());
-    });
-
     function getProfileFromUI() {
       return {
         speed: parseFloat(speedEl.value),
         stride: parseFloat(strideEl.value),
         goalType: goalTypeEl.value,
         goalValue: parseFloat(goalValueEl.value || "0"),
-        lockView: !!lockViewEl.checked,
-        treadmillMode: !!treadmillModeEl.checked
+        lockView: !!lockViewEl.checked
       };
     }
 
@@ -842,12 +712,10 @@
       if (typeof p.goalType === "string") goalTypeEl.value = p.goalType;
       if (typeof p.goalValue === "number") goalValueEl.value = String(p.goalValue);
       lockViewEl.checked = !!p.lockView;
-      treadmillModeEl.checked = !!p.treadmillMode;
 
       speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
       strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
       applyLockViewUI();
-      applyTreadmillUI();
     }
 
     saveProfileEl.addEventListener("click", () => {
@@ -862,16 +730,11 @@
 
         const fromText = fromEl.value.trim();
         const toText = toEl.value.trim();
-        if (!fromText || !toText) {
-          alert("Escribe origen y destino.");
-          return;
-        }
+        if (!fromText || !toText) { alert("Escribe origen y destino."); return; }
 
         saveJSON(LS_KEYS.lastRoute, { from: fromText, to: toText });
 
         setStatus("Geocodificando...");
-        setHud("Geocodificando...", 0);
-
         const a = await geocode(fromText);
         const b = await geocode(toText);
 
@@ -881,7 +744,6 @@
         console.error(e);
         alert(e.message || "Error");
         setStatus("Error: " + (e.message || "desconocido"));
-        setHud("Error: " + (e.message || "desconocido"), 0);
         enableAuto(false);
       }
     });
@@ -892,28 +754,26 @@
       stopAll(routeInfoText ? (routeInfoText + "\nParado.") : "Parado.");
     });
 
-    // ========= Recomendadas (dropdown) =========
+    // ✅ Parar flotante (solo en Auto)
+    stopAutoBtn.addEventListener("click", () => {
+      stopAll(routeInfoText ? (routeInfoText + "\nParado.") : "Parado.");
+    });
+
+    // ========= Recomendadas dropdown =========
     function initRecommended() {
       recommendedSelectEl.innerHTML = RECOMMENDED
         .map(r => `<option value="${r.id}">${r.label}</option>`)
         .join("");
     }
-
     function getSelectedRecommended() {
       const id = recommendedSelectEl.value;
       return RECOMMENDED.find(r => r.id === id) || RECOMMENDED[0];
     }
-
     loadRecommendedEl.addEventListener("click", async () => {
       const r = getSelectedRecommended();
-      try {
-        await loadRouteFromCoords(r.a, r.b, r.fromLabel, r.toLabel);
-      } catch (e) {
-        console.error(e);
-        alert(e.message || "Error");
-      }
+      try { await loadRouteFromCoords(r.a, r.b, r.fromLabel, r.toLabel); }
+      catch (e) { console.error(e); alert(e.message || "Error"); }
     });
-
     prefillRecommendedEl.addEventListener("click", () => {
       const r = getSelectedRecommended();
       fromEl.value = r.fromLabel;
@@ -921,7 +781,7 @@
       setStatus("Listo: pulsa “Cargar ruta” o “Cargar” en recomendadas.");
     });
 
-    // ========= INIT =========
+    // ========= Init =========
     (function init() {
       initRecommended();
 
@@ -936,10 +796,8 @@
 
       speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
       strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
-
       applyLockViewUI();
-      applyTreadmillUI();
-      setHud("Escribe De/A y pulsa “Cargar ruta”.", 0);
+      setHud("Carga una ruta y pulsa Auto ⏵", 0);
     })();
   </script>
 </body>
