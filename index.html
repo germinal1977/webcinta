@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Paseo (Leaflet + Mapillary) - Modo Cinta</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link href="./mapillary.min.css" rel="stylesheet" />
+
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, Arial; }
+    #wrap { height: 100%; display: grid; grid-template-columns: 460px 1fr; }
+
+    #left { border-right: 1px solid #e5e7eb; display: grid; grid-template-rows: auto 1fr; }
+    header { padding: 12px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    input, select {
+      padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; outline: none; background: #fff;
+    }
+
+    .btnrow { display: flex; gap: 10px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+    button { padding: 10px 12px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 700; }
+    .primary { background: #2563eb; color: #fff; }
+    .secondary { background: #e5e7eb; color: #111827; }
+    .ghost { background: #111827; color: #fff; }
+
+    .controlLine { display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top: 10px; }
+    .badge { font-size: 12px; color:#111827; background:#fff; border:1px solid #d1d5db; padding:6px 10px; border-radius: 999px; }
+    input[type="range"] { width: 220px; }
+    .mini { font-size: 12px; color:#6b7280; }
+
+    #status { margin-top: 10px; font-size: 13px; color: #374151; line-height: 1.35; white-space: pre-line; }
+    #note { margin-top: 6px; font-size: 12px; color: #6b7280; line-height: 1.35; }
+
+    #map { height: 100%; }
+    #viewerWrap { position: relative; height: 100%; background: #111; }
+    #viewer { height: 100%; background: #111; }
+
+    /* Bloqueo de interacción (para “fijar cámara”) */
+    #viewerLockOverlay {
+      position:absolute; inset:0;
+      display:none;
+      background: rgba(0,0,0,0);
+      z-index: 50;
+    }
+    #viewerLockedHint {
+      position:absolute; left: 12px; bottom: 12px;
+      background: rgba(0,0,0,0.55);
+      color:#fff; padding:8px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      display:none;
+      z-index: 60;
+    }
+
+    /* Modo cinta: ocultar panel de mapa */
+    .treadmill #left { display:none; }
+    .treadmill #wrap { grid-template-columns: 1fr; }
+
+    /* ====== Títulos UX ====== */
+    .sectionTitle{
+      margin-top:10px;
+      font-size:12px;
+      font-weight:900;
+      color:#111827;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .sectionHint{
+      font-size:12px;
+      color:#6b7280;
+      font-weight:600;
+    }
+
+    /* ====== Recomendadas (compacto) ====== */
+    .recRow{
+      margin-top:10px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      padding:10px;
+    }
+    .recRow select{ flex:1; min-width: 240px; }
+    .btnSmall{
+      padding:10px 12px;
+      border-radius:10px;
+      font-weight:900;
+      cursor:pointer;
+      border:0;
+    }
+    .btnSmall.primary{ background:#2563eb; color:#fff; }
+    .btnSmall.secondary{ background:#e5e7eb; color:#111827; }
+
+    /* ====== HUD flotante en visor (para modo cinta) ====== */
+    #hud {
+      position:absolute;
+      left:12px; top:12px;
+      z-index: 70;
+      width: min(420px, calc(100% - 24px));
+      display:none;
+    }
+    .hudBox{
+      background: rgba(0,0,0,0.55);
+      color:#fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      backdrop-filter: blur(6px);
+    }
+    .hudTitle{
+      font-size: 12px;
+      font-weight: 900;
+      opacity: 0.95;
+      margin-bottom: 6px;
+    }
+    .hudLine{
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+    .progressBar{
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      overflow:hidden;
+      margin-top: 8px;
+    }
+    .progressFill{
+      height:100%;
+      width:0%;
+      background: rgba(255,255,255,0.9);
+      border-radius: 999px;
+    }
+
+    /* ====== MiniMap flotante (solo modo cinta) ====== */
+    #miniMapWrap{
+      position:absolute;
+      right:12px; bottom:12px;
+      width: 280px;
+      height: 190px;
+      z-index: 80;
+      display:none;
+      border-radius: 16px;
+      overflow:hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.18);
+      background:#111;
+    }
+    #miniMap{
+      width:100%;
+      height:100%;
+    }
+    #miniMapLabel{
+      position:absolute;
+      left:10px; top:10px;
+      z-index: 90;
+      background: rgba(0,0,0,0.55);
+      color:#fff;
+      padding:6px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      pointer-events: none;
+    }
+
+    @media (max-width: 900px) {
+      #wrap { grid-template-columns: 1fr; grid-template-rows: auto 260px 1fr; }
+      #left { grid-template-rows: auto 260px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+      #viewerWrap { height: calc(100vh - 260px - 250px); min-height: 340px; }
+      #miniMapWrap{ width: 240px; height: 170px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="wrap">
+    <div id="left">
+      <header>
+
+        <!-- ====== Ruta libre ====== -->
+        <div class="sectionTitle">
+          <span>Ruta libre</span>
+          <span class="sectionHint">Escribe De/A y pulsa “Cargar ruta”</span>
+        </div>
+
+        <div class="row">
+          <input id="from" placeholder="De (ej: madrid atocha)" value="madrid atocha" />
+          <input id="to" placeholder="A (ej: madrid puerta alcala)" value="madrid puerta alcala" />
+        </div>
+
+        <div class="btnrow">
+          <button class="primary" id="go">Cargar ruta</button>
+          <button class="ghost" id="auto" disabled>Auto ⏵</button>
+          <button class="secondary" id="stop">Parar</button>
+        </div>
+
+        <div class="controlLine">
+          <span class="badge">Velocidad</span>
+          <input id="speed" type="range" min="3" max="6" step="0.1" value="5" />
+          <span class="badge"><span id="speedVal">5.0</span> km/h</span>
+          <span class="badge">Modo: <span id="modeVal">—</span></span>
+        </div>
+
+        <div class="controlLine">
+          <span class="badge">Zancada</span>
+          <input id="stride" type="range" min="0.6" max="1.2" step="0.05" value="0.9" />
+          <span class="badge"><span id="strideVal">0.90</span> m</span>
+          <span class="mini">(ajusta sensación real)</span>
+        </div>
+
+        <div class="controlLine">
+          <span class="badge">Objetivo</span>
+          <select id="goalType">
+            <option value="none">Sin objetivo</option>
+            <option value="time">Tiempo (min)</option>
+            <option value="distance">Distancia (km)</option>
+          </select>
+          <input id="goalValue" type="number" min="1" step="1" value="30" style="width:110px" />
+          <span class="mini">Se para solo al cumplirlo</span>
+        </div>
+
+        <div class="controlLine">
+          <label class="badge" style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+            <input id="lockView" type="checkbox" />
+            Bloquear vista (no girar)
+          </label>
+
+          <label class="badge" style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+            <input id="treadmillMode" type="checkbox" />
+            Modo cinta (ocultar panel)
+          </label>
+
+          <button class="secondary" id="saveProfile" title="Guarda velocidad/zancada/objetivo">Guardar perfil</button>
+        </div>
+
+        <!-- ====== Recomendadas (compacto) ====== -->
+        <div class="sectionTitle">
+          <span>Rutas recomendadas</span>
+          <span class="sectionHint">≈30 min · Mapillary</span>
+        </div>
+
+        <div class="recRow">
+          <select id="recommendedSelect"></select>
+          <button class="btnSmall primary" id="loadRecommended">Cargar</button>
+          <button class="btnSmall secondary" id="prefillRecommended">Rellenar</button>
+        </div>
+
+        <div id="status">Escribe De/A y pulsa “Cargar ruta”.</div>
+        <div id="note">
+          - Auto avanza por metros reales + tiempo real (cinta).<br/>
+          - En modo cinta verás un mini-mapa flotante con tu progreso.
+        </div>
+      </header>
+
+      <div id="map"></div>
+    </div>
+
+    <div id="viewerWrap">
+      <div id="viewer"></div>
+
+      <!-- HUD (se muestra en modo cinta para ver lo que falta) -->
+      <div id="hud">
+        <div class="hudBox">
+          <div class="hudTitle" id="hudTitle">Ruta</div>
+          <div class="hudLine" id="hudText">—</div>
+          <div class="progressBar"><div class="progressFill" id="hudBar"></div></div>
+        </div>
+      </div>
+
+      <!-- MiniMap (se muestra en modo cinta para ver por dónde vas) -->
+      <div id="miniMapWrap">
+        <div id="miniMapLabel">Mapa</div>
+        <div id="miniMap"></div>
+      </div>
+
+      <div id="viewerLockOverlay"></div>
+      <div id="viewerLockedHint">Vista bloqueada</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="./mapillary.min.js"></script>
+
+  <script>
+    // ========= CONFIG =========
+    const MAPILLARY_TOKEN = "MLY|25469536246042332|6d26d9d265792255146c082c531f00bf";
+
+    const MAX_ROUTE_POINTS = 90;
+    const IMAGE_UPDATE_EVERY_M = 12;
+
+    const BBOX_DELTA = 0.0035;
+    const IMAGES_PER_POINT = 10;
+    const MAX_IMAGES_TOTAL = 140;
+
+    // ========= RUTAS RECOMENDADAS (A→B por coordenadas) =========
+    const RECOMMENDED = [
+      {
+        id: "valencia_turia",
+        label: "Valencia · Jardín del Turia (Serranos → Exposición)",
+        fromLabel: "Valencia · Puente de Serranos",
+        toLabel: "Valencia · Puente de la Exposición",
+        a: { lat: 39.47931, lon: -0.37675 },
+        b: { lat: 39.46979, lon: -0.35962 },
+      },
+      {
+        id: "nyc_centralpark",
+        label: "Nueva York · Central Park (Columbus Circle → Bethesda)",
+        fromLabel: "NYC · Columbus Circle",
+        toLabel: "NYC · Bethesda Terrace",
+        a: { lat: 40.76810, lon: -73.98190 },
+        b: { lat: 40.77402, lon: -73.97096 },
+      },
+      {
+        id: "camino_santiago",
+        label: "Camino · Santiago (Belvís → Obradoiro)",
+        fromLabel: "Santiago · Parque de Belvís",
+        toLabel: "Santiago · Praza do Obradoiro",
+        a: { lat: 42.87793, lon: -8.53565 },
+        b: { lat: 42.88047, lon: -8.54491 },
+      }
+    ];
+
+    // ========= “BD” LOCAL (localStorage) =========
+    const LS_KEYS = {
+      profile: "walksim_profile_v1",
+      lastRoute: "walksim_lastRoute_v1",
+      sessions: "walksim_sessions_v1"
+    };
+
+    function loadJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        return JSON.parse(raw);
+      } catch {
+        return fallback;
+      }
+    }
+    function saveJSON(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    // ========= UI =========
+    const fromEl = document.getElementById("from");
+    const toEl = document.getElementById("to");
+    const goEl = document.getElementById("go");
+    const stopEl = document.getElementById("stop");
+    const autoEl = document.getElementById("auto");
+
+    const speedEl = document.getElementById("speed");
+    const speedValEl = document.getElementById("speedVal");
+    const modeValEl = document.getElementById("modeVal");
+
+    const strideEl = document.getElementById("stride");
+    const strideValEl = document.getElementById("strideVal");
+
+    const goalTypeEl = document.getElementById("goalType");
+    const goalValueEl = document.getElementById("goalValue");
+
+    const lockViewEl = document.getElementById("lockView");
+    const treadmillModeEl = document.getElementById("treadmillMode");
+    const saveProfileEl = document.getElementById("saveProfile");
+
+    const statusEl = document.getElementById("status");
+    const setStatus = (t) => statusEl.textContent = t;
+
+    const viewerLockOverlay = document.getElementById("viewerLockOverlay");
+    const viewerLockedHint = document.getElementById("viewerLockedHint");
+
+    const recommendedSelectEl = document.getElementById("recommendedSelect");
+    const loadRecommendedEl = document.getElementById("loadRecommended");
+    const prefillRecommendedEl = document.getElementById("prefillRecommended");
+
+    // HUD
+    const hudEl = document.getElementById("hud");
+    const hudTitleEl = document.getElementById("hudTitle");
+    const hudTextEl = document.getElementById("hudText");
+    const hudBarEl = document.getElementById("hudBar");
+
+    // MiniMap
+    const miniMapWrapEl = document.getElementById("miniMapWrap");
+
+    // ========= LEAFLET (map grande) =========
+    const map = L.map("map").setView([40.4168, -3.7038], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+
+    let routeLine = null;
+    let marker = null;
+
+    // ========= LEAFLET (mini map) =========
+    const miniMap = L.map("miniMap", {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      boxZoom: true,
+      keyboard: true,
+      tap: true
+    }).setView([40.4168, -3.7038], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19
+    }).addTo(miniMap);
+
+    let miniRouteLine = null;
+    let miniMarker = null;
+
+    // ========= MAPILLARY =========
+    if (typeof mapillary === "undefined") {
+      alert("mapillary no está definido. Revisa mapillary.min.js y mapillary.min.css en la carpeta.");
+      throw new Error("mapillary undefined");
+    }
+
+    const viewer = new mapillary.Viewer({
+      container: "viewer",
+      accessToken: MAPILLARY_TOKEN,
+      component: { cover: false }
+    });
+
+    function forceResize() {
+      try { map.invalidateSize(); } catch {}
+      try { viewer.resize(); } catch {}
+      try { miniMap.invalidateSize(); } catch {}
+    }
+    window.addEventListener("load", () => { forceResize(); setTimeout(forceResize, 250); setTimeout(forceResize, 800); });
+    window.addEventListener("resize", () => setTimeout(forceResize, 120));
+
+    // ========= HELPERS =========
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function currentSpeedMps() { return parseFloat(speedEl.value) / 3.6; }
+    function currentStrideM() { return parseFloat(strideEl.value); }
+
+    function haversineMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const toRad = d => d * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function downsample(points, maxCount) {
+      if (points.length <= maxCount) return points;
+      const step = Math.ceil(points.length / maxCount);
+      const out = [];
+      for (let i = 0; i < points.length; i += step) out.push(points[i]);
+      return out;
+    }
+
+    function formatTime(sec) {
+      sec = Math.max(0, Math.round(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+    // ========= STATE =========
+    let routePoints = [];
+    let routeDistanceM = 0;
+
+    let imageQueue = [];
+    let imageIdx = 0;
+
+    let walkAbort = false;
+    let walking = false;
+
+    let walkedMeters = 0;
+    let routeInfoText = "";
+
+    // sesión para historial
+    let sessionStartTs = null;
+    let sessionFrom = "";
+    let sessionTo = "";
+    let sessionTarget = { type: "none", value: 0 };
+
+    function enableAuto(enabled) { autoEl.disabled = !enabled; }
+
+    function applyLockViewUI() {
+      const locked = !!lockViewEl.checked;
+      viewerLockOverlay.style.display = locked ? "block" : "none";
+      viewerLockedHint.style.display = locked ? "block" : "none";
+    }
+
+    function applyTreadmillUI() {
+      const isTread = !!treadmillModeEl.checked;
+      document.body.classList.toggle("treadmill", isTread);
+
+      // En modo cinta: mostramos HUD y miniMap flotante
+      hudEl.style.display = isTread ? "block" : "none";
+      miniMapWrapEl.style.display = isTread ? "block" : "none";
+
+      setTimeout(forceResize, 60);
+      setTimeout(forceResize, 240);
+    }
+
+    function updateRouteInfoLine() {
+      const km = routeDistanceM / 1000;
+      const minsAtSpeed = (routeDistanceM / currentSpeedMps()) / 60;
+      routeInfoText = `Ruta: ${km.toFixed(2)} km · ${Math.round(minsAtSpeed)} min a ${parseFloat(speedEl.value).toFixed(1)} km/h`;
+      hudTitleEl.textContent = routeInfoText;
+    }
+
+    function setHud(text, pct){
+      hudTextEl.textContent = text || "—";
+      hudBarEl.style.width = `${clamp(pct || 0, 0, 100)}%`;
+    }
+
+    function stopAll(msg = "Parado.") {
+      walkAbort = true;
+      walking = false;
+      modeValEl.textContent = "—";
+      setStatus(msg);
+      setHud(msg, 0);
+
+      // guardar sesión si estaba activa
+      if (sessionStartTs) {
+        const elapsedSec = (Date.now() - sessionStartTs) / 1000;
+        const sessions = loadJSON(LS_KEYS.sessions, []);
+        sessions.unshift({
+          at: new Date().toISOString(),
+          from: sessionFrom,
+          to: sessionTo,
+          distance_km: routeDistanceM ? +(routeDistanceM/1000).toFixed(2) : null,
+          walked_km: +(Math.min(walkedMeters, routeDistanceM)/1000).toFixed(2),
+          speed_kmh: +parseFloat(speedEl.value).toFixed(1),
+          stride_m: +parseFloat(strideEl.value).toFixed(2),
+          goal: sessionTarget,
+          elapsed_min: Math.round(elapsedSec/60)
+        });
+        saveJSON(LS_KEYS.sessions, sessions.slice(0, 50));
+        sessionStartTs = null;
+      }
+    }
+
+    function checkGoalAndMaybeStop(elapsedSec) {
+      const type = goalTypeEl.value;
+      const val = parseFloat(goalValueEl.value || "0");
+
+      if (type === "time" && val > 0) {
+        if ((elapsedSec/60) >= val) return "Objetivo de tiempo alcanzado.";
+      }
+      if (type === "distance" && val > 0) {
+        if ((walkedMeters/1000) >= val) return "Objetivo de distancia alcanzado.";
+      }
+      return null;
+    }
+
+    // ========= API: Geocode + OSRM =========
+    async function geocode(query) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+      const res = await fetch(url, { headers: { "Accept": "application/json" }});
+      const data = await res.json();
+      if (!data || !data[0]) throw new Error("No encontré: " + query);
+      return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    }
+
+    async function routeOSRM(a, b) {
+      const url =
+        `https://router.project-osrm.org/route/v1/foot/${a.lon},${a.lat};${b.lon},${b.lat}` +
+        `?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.routes || !data.routes[0]) throw new Error("No pude calcular la ruta.");
+      const r = data.routes[0];
+      return { coords: r.geometry.coordinates, distance_m: r.distance, duration_s: r.duration };
+    }
+
+    // ========= Mapillary Graph =========
+    async function getImageIdsInBbox(lat, lon, limit) {
+      const bbox = [lon - BBOX_DELTA, lat - BBOX_DELTA, lon + BBOX_DELTA, lat + BBOX_DELTA].join(",");
+      const url =
+        `https://graph.mapillary.com/images` +
+        `?access_token=${encodeURIComponent(MAPILLARY_TOKEN)}` +
+        `&fields=id` +
+        `&bbox=${bbox}` +
+        `&limit=${limit}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return (data && data.data) ? data.data.map(x => x.id).filter(Boolean) : [];
+    }
+
+    async function buildImageQueue(points) {
+      setStatus(routeInfoText + "\nBuscando imágenes (Mapillary)...");
+      setHud("Buscando imágenes (Mapillary)...", 0);
+
+      const unique = new Set();
+      const out = [];
+
+      for (let i = 0; i < points.length; i++) {
+        if (out.length >= MAX_IMAGES_TOTAL) break;
+        const p = points[i];
+
+        if (!marker) marker = L.marker([p.lat, p.lon]).addTo(map);
+        marker.setLatLng([p.lat, p.lon]);
+
+        if (!miniMarker) miniMarker = L.circleMarker([p.lat, p.lon], { radius: 6, weight: 2 }).addTo(miniMap);
+        miniMarker.setLatLng([p.lat, p.lon]);
+
+        setStatus(`${routeInfoText}\nImágenes: ${out.length} · Punto ${i+1}/${points.length}`);
+        setHud(`Imágenes: ${out.length} · Punto ${i+1}/${points.length}`, (i/points.length)*100);
+
+        let ids = [];
+        try { ids = await getImageIdsInBbox(p.lat, p.lon, IMAGES_PER_POINT); }
+        catch (e) { console.error(e); continue; }
+
+        for (const id of ids) {
+          if (!unique.has(id)) {
+            unique.add(id);
+            out.push(id);
+            if (out.length >= MAX_IMAGES_TOTAL) break;
+          }
+        }
+      }
+      return out;
+    }
+
+    // ========= CARGA DE RUTA (común) =========
+    async function loadRouteFromCoords(a, b, fromLabel, toLabel) {
+      stopAll("Cargando...");
+      enableAuto(false);
+
+      fromEl.value = fromLabel || `${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}`;
+      toEl.value = toLabel || `${b.lat.toFixed(5)}, ${b.lon.toFixed(5)}`;
+
+      setStatus("Calculando ruta...");
+      setHud("Calculando ruta...", 0);
+
+      const result = await routeOSRM(a, b);
+
+      routeDistanceM = result.distance_m;
+      updateRouteInfoLine();
+
+      const coords = result.coords;
+
+      // dibujar ruta en mapa grande
+      const latlngs = coords.map(c => [c[1], c[0]]);
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.polyline(latlngs, { weight: 5 }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
+
+      // dibujar ruta en miniMap
+      if (miniRouteLine) miniMap.removeLayer(miniRouteLine);
+      miniRouteLine = L.polyline(latlngs, { weight: 4 }).addTo(miniMap);
+      miniMap.fitBounds(miniRouteLine.getBounds(), { padding: [10, 10] });
+
+      // puntos (para caminar)
+      routePoints = downsample(coords.map(c => ({ lon: c[0], lat: c[1] })), MAX_ROUTE_POINTS);
+
+      // reset
+      walkedMeters = 0;
+      imageIdx = 0;
+      imageQueue = [];
+      walking = false;
+
+      // marker inicial (map grande)
+      if (!marker) marker = L.marker([routePoints[0].lat, routePoints[0].lon]).addTo(map);
+      marker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
+
+      // marker inicial (miniMap)
+      if (!miniMarker) miniMarker = L.circleMarker([routePoints[0].lat, routePoints[0].lon], { radius: 6, weight: 2 }).addTo(miniMap);
+      miniMarker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
+
+      // imágenes
+      imageQueue = await buildImageQueue(routePoints);
+
+      forceResize();
+      if (imageQueue.length > 0) {
+        try { await viewer.moveTo(imageQueue[0]); } catch {}
+      }
+
+      const km = (routeDistanceM/1000).toFixed(2);
+      setStatus(`${routeInfoText}\nImágenes encontradas: ${imageQueue.length}\nListo. Pulsa “Auto ⏵”.`);
+      setHud(`Distancia: ${km} km\nImágenes: ${imageQueue.length}\nListo: pulsa Auto ⏵`, 0);
+
+      enableAuto(true);
+      modeValEl.textContent = "—";
+
+      saveJSON(LS_KEYS.lastRoute, { from: fromEl.value.trim(), to: toEl.value.trim() });
+    }
+
+    // ========= AUTO REAL =========
+    async function startAutoReal() {
+      if (!routePoints.length) return;
+      if (walking) return;
+
+      walking = true;
+      stopAll(routeInfoText + "\nIniciando auto...");
+      walkAbort = false;
+      modeValEl.textContent = "Auto";
+
+      walkedMeters = 0;
+
+      sessionStartTs = Date.now();
+      sessionFrom = fromEl.value.trim();
+      sessionTo = toEl.value.trim();
+      sessionTarget = { type: goalTypeEl.value, value: parseFloat(goalValueEl.value || "0") };
+
+      if (imageQueue.length > 0) {
+        imageIdx = 0;
+        try { await viewer.moveTo(imageQueue[0]); } catch {}
+      }
+
+      let segIndex = 0;
+      let segOffset = 0;
+      const totalM = routeDistanceM || 0;
+      const startTs = Date.now();
+
+      while (!walkAbort && segIndex < routePoints.length - 1) {
+        const p1 = routePoints[segIndex];
+        const p2 = routePoints[segIndex + 1];
+
+        const segLen = haversineMeters(p1.lat, p1.lon, p2.lat, p2.lon);
+        if (segLen < 0.5) { segIndex++; continue; }
+
+        const STEP = currentStrideM();
+
+        segOffset += STEP;
+        walkedMeters += STEP;
+
+        if (segOffset >= segLen) {
+          segOffset = 0;
+          segIndex++;
+          continue;
+        }
+
+        const t = Math.min(segOffset / segLen, 1);
+        const lat = p1.lat + (p2.lat - p1.lat) * t;
+        const lon = p1.lon + (p2.lon - p1.lon) * t;
+
+        // mover marcador mapa grande
+        if (!marker) marker = L.marker([lat, lon]).addTo(map);
+        marker.setLatLng([lat, lon]);
+
+        // mover marcador miniMap + centrar suavemente
+        if (!miniMarker) miniMarker = L.circleMarker([lat, lon], { radius: 6, weight: 2 }).addTo(miniMap);
+        miniMarker.setLatLng([lat, lon]);
+        // “follow” en miniMap (sin marear)
+        miniMap.panTo([lat, lon], { animate: true, duration: 0.25 });
+
+        // actualizar imagen cada X metros
+        if (imageQueue.length > 1) {
+          if (walkedMeters % IMAGE_UPDATE_EVERY_M < STEP) {
+            imageIdx = Math.min(imageIdx + 1, imageQueue.length - 1);
+            try { await viewer.moveTo(imageQueue[imageIdx]); } catch {}
+          }
+        }
+
+        const elapsedSec = (Date.now() - startTs) / 1000;
+        const done = Math.min(walkedMeters, totalM);
+        const remain = Math.max(0, totalM - done);
+        const etaSec = currentSpeedMps() > 0 ? remain / currentSpeedMps() : 0;
+        const pct = totalM > 0 ? (done / totalM) * 100 : 0;
+
+        const goalHit = checkGoalAndMaybeStop(elapsedSec);
+
+        const statusText =
+          `${routeInfoText}\n` +
+          `Recorrido: ${(done/1000).toFixed(2)} / ${(totalM/1000).toFixed(2)} km (${pct.toFixed(1)}%)\n` +
+          `Falta: ${(remain/1000).toFixed(2)} km · ETA: ${formatTime(etaSec)}\n` +
+          `Tiempo: ${formatTime(elapsedSec)} · Imágenes: ${imageQueue.length} (pos ${imageIdx+1})` +
+          (goalHit ? `\n${goalHit}` : "");
+
+        setStatus(statusText);
+        setHud(
+          `Recorrido: ${(done/1000).toFixed(2)} / ${(totalM/1000).toFixed(2)} km\n` +
+          `Falta: ${(remain/1000).toFixed(2)} km · ETA: ${formatTime(etaSec)}\n` +
+          `Tiempo: ${formatTime(elapsedSec)} · Imágenes: ${imageQueue.length}`,
+          pct
+        );
+
+        if (goalHit) {
+          stopAll(routeInfoText + "\n" + goalHit);
+          break;
+        }
+
+        const delayMs = (STEP / currentSpeedMps()) * 1000;
+        await sleep(delayMs);
+      }
+
+      walking = false;
+
+      if (!walkAbort) {
+        stopAll(routeInfoText + "\n¡Llegaste!");
+      }
+    }
+
+    // ========= EVENTS =========
+    speedEl.addEventListener("input", () => {
+      speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
+      if (routeDistanceM > 0) {
+        updateRouteInfoLine();
+        setStatus(routeInfoText + "\n(velocidad actualizada)");
+      }
+    });
+
+    strideEl.addEventListener("input", () => {
+      strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
+    });
+
+    lockViewEl.addEventListener("change", () => {
+      applyLockViewUI();
+      saveJSON(LS_KEYS.profile, getProfileFromUI());
+    });
+
+    treadmillModeEl.addEventListener("change", () => {
+      applyTreadmillUI();
+      saveJSON(LS_KEYS.profile, getProfileFromUI());
+    });
+
+    function getProfileFromUI() {
+      return {
+        speed: parseFloat(speedEl.value),
+        stride: parseFloat(strideEl.value),
+        goalType: goalTypeEl.value,
+        goalValue: parseFloat(goalValueEl.value || "0"),
+        lockView: !!lockViewEl.checked,
+        treadmillMode: !!treadmillModeEl.checked
+      };
+    }
+
+    function applyProfile(p) {
+      if (!p) return;
+      if (typeof p.speed === "number") speedEl.value = String(p.speed);
+      if (typeof p.stride === "number") strideEl.value = String(p.stride);
+      if (typeof p.goalType === "string") goalTypeEl.value = p.goalType;
+      if (typeof p.goalValue === "number") goalValueEl.value = String(p.goalValue);
+      lockViewEl.checked = !!p.lockView;
+      treadmillModeEl.checked = !!p.treadmillMode;
+
+      speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
+      strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
+      applyLockViewUI();
+      applyTreadmillUI();
+    }
+
+    saveProfileEl.addEventListener("click", () => {
+      saveJSON(LS_KEYS.profile, getProfileFromUI());
+      setStatus((routeInfoText ? routeInfoText + "\n" : "") + "Perfil guardado.");
+    });
+
+    goEl.addEventListener("click", async () => {
+      try {
+        stopAll("Cargando...");
+        enableAuto(false);
+
+        const fromText = fromEl.value.trim();
+        const toText = toEl.value.trim();
+        if (!fromText || !toText) {
+          alert("Escribe origen y destino.");
+          return;
+        }
+
+        saveJSON(LS_KEYS.lastRoute, { from: fromText, to: toText });
+
+        setStatus("Geocodificando...");
+        setHud("Geocodificando...", 0);
+
+        const a = await geocode(fromText);
+        const b = await geocode(toText);
+
+        await loadRouteFromCoords(a, b, fromText, toText);
+
+      } catch (e) {
+        console.error(e);
+        alert(e.message || "Error");
+        setStatus("Error: " + (e.message || "desconocido"));
+        setHud("Error: " + (e.message || "desconocido"), 0);
+        enableAuto(false);
+      }
+    });
+
+    autoEl.addEventListener("click", () => startAutoReal());
+
+    stopEl.addEventListener("click", () => {
+      stopAll(routeInfoText ? (routeInfoText + "\nParado.") : "Parado.");
+    });
+
+    // ========= Recomendadas (dropdown) =========
+    function initRecommended() {
+      recommendedSelectEl.innerHTML = RECOMMENDED
+        .map(r => `<option value="${r.id}">${r.label}</option>`)
+        .join("");
+    }
+
+    function getSelectedRecommended() {
+      const id = recommendedSelectEl.value;
+      return RECOMMENDED.find(r => r.id === id) || RECOMMENDED[0];
+    }
+
+    loadRecommendedEl.addEventListener("click", async () => {
+      const r = getSelectedRecommended();
+      try {
+        await loadRouteFromCoords(r.a, r.b, r.fromLabel, r.toLabel);
+      } catch (e) {
+        console.error(e);
+        alert(e.message || "Error");
+      }
+    });
+
+    prefillRecommendedEl.addEventListener("click", () => {
+      const r = getSelectedRecommended();
+      fromEl.value = r.fromLabel;
+      toEl.value = r.toLabel;
+      setStatus("Listo: pulsa “Cargar ruta” o “Cargar” en recomendadas.");
+    });
+
+    // ========= INIT =========
+    (function init() {
+      initRecommended();
+
+      const profile = loadJSON(LS_KEYS.profile, null);
+      applyProfile(profile);
+
+      const last = loadJSON(LS_KEYS.lastRoute, null);
+      if (last && last.from && last.to) {
+        fromEl.value = last.from;
+        toEl.value = last.to;
+      }
+
+      speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
+      strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
+
+      applyLockViewUI();
+      applyTreadmillUI();
+      setHud("Escribe De/A y pulsa “Cargar ruta”.", 0);
+    })();
+  </script>
+</body>
+</html>
