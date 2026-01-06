@@ -80,7 +80,6 @@
     /* ===== AUTO layout ===== */
     #autoLayout { display:none; height:100%; }
 
-    /* Entrar en auto: ocultar panel izquierdo */
     body.autoUI #left { display:none; }
     body.autoUI #wrap { grid-template-columns: 1fr; }
 
@@ -102,7 +101,7 @@
     #autoBar{
       display:flex;
       align-items:center;
-      gap:12px;
+      gap:10px;
       padding: 10px 12px;
       background:#0f0f0f;
       border-bottom: 1px solid rgba(255,255,255,0.12);
@@ -116,6 +115,16 @@
       font-weight: 1000;
       background:#e5e7eb;
       color:#111827;
+      flex: 0 0 auto;
+    }
+    #autoPause{
+      padding: 12px 14px;
+      border-radius: 14px;
+      border:0;
+      cursor:pointer;
+      font-weight: 1000;
+      background:#2563eb;
+      color:#fff;
       flex: 0 0 auto;
     }
     #autoStats{
@@ -144,7 +153,7 @@
       background:#111;
     }
 
-    /* AUTO horizontal: MAPA | FOTOS (50/50) + barra abajo */
+    /* AUTO horizontal: MAPA | FOTOS + barra abajo */
     @media (orientation: landscape) {
       body.autoUI #autoLayout{
         grid-template-columns: 1fr 1fr;
@@ -158,7 +167,6 @@
       #autoBar { grid-area: bar; border-bottom:0; border-top: 1px solid rgba(255,255,255,0.12); }
     }
 
-    /* Móvil */
     @media (max-width: 900px) {
       #wrap { grid-template-columns: 1fr; grid-template-rows: auto 260px 1fr; }
       #left { grid-template-rows: auto 260px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
@@ -167,7 +175,7 @@
     @media (max-width: 520px) {
       .stat{ min-width: 86px; padding: 9px 10px; }
       .stat .v{ font-size:15px; }
-      #autoBack{ padding: 12px 12px; }
+      #autoBack, #autoPause{ padding: 12px 12px; }
     }
   </style>
 </head>
@@ -236,17 +244,15 @@
         </div>
 
         <div id="status">Escribe De/A y pulsa “Cargar ruta”.</div>
-        <div id="note">En Auto: fullscreen + mapa y fotos 50/50 + barra con métricas. Wake Lock en Android.</div>
+        <div id="note">En Auto: fullscreen + no apagado + PAUSA + ruta hecha/restante.</div>
       </header>
 
       <div id="map"></div>
     </div>
 
     <div id="viewerWrap">
-      <!-- NORMAL: el shell vive aquí -->
       <div id="viewerHostNormal"></div>
 
-      <!-- AUTO: layout completo -->
       <div id="autoLayout">
         <div id="autoMapWrap">
           <div id="autoMap"></div>
@@ -254,6 +260,7 @@
 
         <div id="autoBar">
           <button id="autoBack">Atrás</button>
+          <button id="autoPause">Pausa</button>
 
           <div id="autoStats">
             <div class="stat">
@@ -409,13 +416,13 @@
     const loadRecommendedEl = document.getElementById("loadRecommended");
     const prefillRecommendedEl = document.getElementById("prefillRecommended");
 
-    // Auto bar stats
     const statDistEl = document.getElementById("statDist");
     const statRemainEl = document.getElementById("statRemain");
     const statTimeEl = document.getElementById("statTime");
-    const autoBackEl = document.getElementById("autoBack");
 
-    // Viewer containers
+    const autoBackEl = document.getElementById("autoBack");
+    const autoPauseEl = document.getElementById("autoPause");
+
     const viewerHostNormal = document.getElementById("viewerHostNormal");
     const viewerHostAuto = document.getElementById("viewerHostAuto");
     const viewerWrap = document.getElementById("viewerWrap");
@@ -433,22 +440,28 @@
     const viewerLockOverlay = () => document.getElementById("viewerLockOverlay");
     const viewerLockedHint  = () => document.getElementById("viewerLockedHint");
 
-    // ========= LEAFLET (map normal izquierda) =========
+    // ========= LEAFLET (map normal) =========
     const map = L.map("map").setView([40.4168, -3.7038], 13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap"
     }).addTo(map);
 
-    let routeLine = null;
     let marker = null;
+
+    // Rutas en dos colores (normal)
+    let lineDone = null;
+    let lineRemain = null;
 
     // ========= LEAFLET (autoMap) =========
     const autoMap = L.map("autoMap", { zoomControl:false, attributionControl:false }).setView([40.4168, -3.7038], 13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(autoMap);
 
-    let autoRouteLine = null;
     let autoMarker = null;
+
+    // Rutas en dos colores (auto)
+    let autoLineDone = null;
+    let autoLineRemain = null;
 
     // ========= MAPILLARY =========
     if (typeof mapillary === "undefined") {
@@ -510,6 +523,7 @@
 
     // ========= STATE =========
     let routePoints = [];
+    let routeLatLngsFull = []; // latlngs completas para dibujar
     let routeDistanceM = 0;
 
     let imageQueue = [];
@@ -518,6 +532,14 @@
     let walkAbort = false;
     let walking = false;
     let walkedMeters = 0;
+
+    // PAUSA
+    let paused = false;
+    let pauseStartTs = null;
+    let pausedTotalMs = 0;
+
+    // Para dibujar hecho/restante sin recalcular a lo bruto
+    let doneLatLngs = [];
 
     function enableAuto(enabled) { autoEl.disabled = !enabled; }
 
@@ -547,7 +569,6 @@
       moveViewerToAuto();
       applyViewerLock(!!lockViewEl.checked);
 
-      // Fullscreen + WakeLock (solo funciona si viene de gesto usuario)
       await requestFullscreen(document.documentElement);
       await requestWakeLock();
       startWakeKeepAlive();
@@ -570,7 +591,6 @@
     }
 
     async function goHomeNormal() {
-      // “volver al inicio”: UI normal + arriba + estado base
       await exitAutoUI();
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       setStatus("Escribe De/A y pulsa “Cargar ruta”.");
@@ -579,6 +599,10 @@
     async function stopAll(msg = "Parado.") {
       walkAbort = true;
       walking = false;
+      paused = false;
+      autoPauseEl.textContent = "Pausa";
+      pauseStartTs = null;
+      pausedTotalMs = 0;
       setStatus(msg);
       await exitAutoUI();
     }
@@ -652,6 +676,40 @@
       return out;
     }
 
+    // ========= DIBUJO hecho/restante =========
+    function initSplitPolylines(latlngs) {
+      routeLatLngsFull = latlngs.slice();
+      doneLatLngs = [routeLatLngsFull[0]];
+
+      // Normal map
+      if (lineDone) map.removeLayer(lineDone);
+      if (lineRemain) map.removeLayer(lineRemain);
+
+      lineDone = L.polyline(doneLatLngs, { weight: 6, opacity: 0.95 }).addTo(map);
+      lineRemain = L.polyline(routeLatLngsFull, { weight: 6, opacity: 0.35 }).addTo(map);
+
+      // Auto map
+      if (autoLineDone) autoMap.removeLayer(autoLineDone);
+      if (autoLineRemain) autoMap.removeLayer(autoLineRemain);
+
+      autoLineDone = L.polyline(doneLatLngs, { weight: 5, opacity: 0.95 }).addTo(autoMap);
+      autoLineRemain = L.polyline(routeLatLngsFull, { weight: 5, opacity: 0.35 }).addTo(autoMap);
+    }
+
+    function updateSplitPolylines(currentLatLng, segIndex) {
+      // Añadimos punto actual a "done"
+      doneLatLngs.push(currentLatLng);
+
+      // Remaining: desde current hasta el final
+      const remain = [currentLatLng, ...routeLatLngsFull.slice(segIndex + 1)];
+
+      lineDone.setLatLngs(doneLatLngs);
+      lineRemain.setLatLngs(remain);
+
+      autoLineDone.setLatLngs(doneLatLngs);
+      autoLineRemain.setLatLngs(remain);
+    }
+
     // ========= CARGA RUTA =========
     async function loadRouteFromCoords(a, b, fromLabel, toLabel) {
       await stopAll("Cargando...");
@@ -668,16 +726,11 @@
       const coords = result.coords;
       const latlngs = coords.map(c => [c[1], c[0]]);
 
-      // mapa normal izquierda
-      if (routeLine) map.removeLayer(routeLine);
-      routeLine = L.polyline(latlngs, { weight: 5 }).addTo(map);
-      map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
+      // Ajuste de vista en mapas
+      map.fitBounds(L.polyline(latlngs).getBounds(), { padding: [20, 20] });
+      autoMap.fitBounds(L.polyline(latlngs).getBounds(), { padding: [10, 10] });
 
-      // mapa auto
-      if (autoRouteLine) autoMap.removeLayer(autoRouteLine);
-      autoRouteLine = L.polyline(latlngs, { weight: 4 }).addTo(autoMap);
-      autoMap.fitBounds(autoRouteLine.getBounds(), { padding: [10, 10] });
-
+      // puntos para caminar
       routePoints = downsample(coords.map(c => ({ lon: c[0], lat: c[1] })), MAX_ROUTE_POINTS);
 
       // reset
@@ -686,13 +739,20 @@
       imageQueue = [];
       walking = false;
 
-      // marker normal
+      paused = false;
+      autoPauseEl.textContent = "Pausa";
+      pauseStartTs = null;
+      pausedTotalMs = 0;
+
+      // markers
       if (!marker) marker = L.marker([routePoints[0].lat, routePoints[0].lon]).addTo(map);
       marker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
 
-      // marker auto
       if (!autoMarker) autoMarker = L.circleMarker([routePoints[0].lat, routePoints[0].lon], { radius: 6, weight: 2 }).addTo(autoMap);
       autoMarker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
+
+      // Split polylines (hecho/restante)
+      initSplitPolylines(latlngs);
 
       // imágenes
       setStatus("Buscando imágenes (Mapillary)...");
@@ -721,12 +781,16 @@
       if (!routePoints.length) return;
       if (walking) return;
 
-      // Entrar en auto (fullscreen + wakelock) desde gesto de usuario
       await enterAutoUI();
 
       walking = true;
       walkAbort = false;
+
       walkedMeters = 0;
+      paused = false;
+      autoPauseEl.textContent = "Pausa";
+      pauseStartTs = null;
+      pausedTotalMs = 0;
 
       // primera imagen
       if (imageQueue.length > 0) {
@@ -739,7 +803,14 @@
       const totalM = routeDistanceM || 0;
       const startTs = Date.now();
 
+      let drawTick = 0;
+
       while (!walkAbort && segIndex < routePoints.length - 1) {
+        if (paused) {
+          await sleep(200);
+          continue;
+        }
+
         const p1 = routePoints[segIndex];
         const p2 = routePoints[segIndex + 1];
 
@@ -766,6 +837,12 @@
         if (autoMarker) autoMarker.setLatLng([lat, lon]);
         autoMap.panTo([lat, lon], { animate:true, duration:0.25 });
 
+        // update ruta hecha/restante (no cada iteración para no cargar)
+        drawTick++;
+        if (drawTick % 4 === 0) {
+          updateSplitPolylines([lat, lon], segIndex);
+        }
+
         // imagen cada X metros
         if (imageQueue.length > 1) {
           if (walkedMeters % IMAGE_UPDATE_EVERY_M < STEP) {
@@ -774,8 +851,11 @@
           }
         }
 
+        // tiempo (sin contar pausas)
+        const now = Date.now();
+        const elapsedSec = (now - startTs - pausedTotalMs) / 1000;
+
         // stats
-        const elapsedSec = (Date.now() - startTs) / 1000;
         const done = Math.min(walkedMeters, totalM);
         const remain = Math.max(0, totalM - done);
 
@@ -789,7 +869,6 @@
           break;
         }
 
-        // tiempo real según velocidad
         const delayMs = (STEP / currentSpeedMps()) * 1000;
         await sleep(delayMs);
       }
@@ -832,10 +911,27 @@
     });
 
     autoBackEl.addEventListener("click", async () => {
-      // “Atrás” = salir de Auto y volver al inicio normal
       walkAbort = true;
       walking = false;
       await goHomeNormal();
+    });
+
+    autoPauseEl.addEventListener("click", () => {
+      if (!walking) return;
+
+      paused = !paused;
+
+      if (paused) {
+        autoPauseEl.textContent = "Reanudar";
+        pauseStartTs = Date.now();
+        // no tocamos walkedMeters, solo “paramos el reloj”
+      } else {
+        autoPauseEl.textContent = "Pausa";
+        if (pauseStartTs) {
+          pausedTotalMs += (Date.now() - pauseStartTs);
+          pauseStartTs = null;
+        }
+      }
     });
 
     lockViewEl.addEventListener("change", () => {
@@ -870,11 +966,8 @@
       speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
       strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
       applyViewerLock(false);
-
-      // Estado inicial
       document.body.classList.remove("autoUI");
       moveViewerToNormal();
-
       setTimeout(forceResize, 250);
     })();
   </script>
