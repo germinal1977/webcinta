@@ -28,7 +28,6 @@
 
     .controlLine { display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top: 10px; }
     .badge { font-size: 12px; color:#111827; background:#fff; border:1px solid #d1d5db; padding:6px 10px; border-radius: 999px; }
-    input[type="range"] { width: 220px; }
     .mini { font-size: 12px; color:#6b7280; }
 
     .sectionTitle{
@@ -45,6 +44,29 @@
     .btnSmall.primary{ background:#2563eb; color:#fff; }
     .btnSmall.secondary{ background:#e5e7eb; color:#111827; }
 
+    /* Selector modo caminar/correr */
+    .modePill {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:#fff;
+      border:1px solid #d1d5db;
+      border-radius: 999px;
+      padding: 6px;
+    }
+    .modePill button{
+      padding: 10px 12px;
+      border-radius: 999px;
+      font-weight: 1000;
+      border: 0;
+      background: transparent;
+      color:#111827;
+    }
+    .modePill button.active{
+      background:#111827;
+      color:#fff;
+    }
+
     #status { margin-top: 10px; font-size: 13px; color: #374151; line-height: 1.35; white-space: pre-line; }
     #note { margin-top: 6px; font-size: 12px; color:#6b7280; line-height: 1.35; }
 
@@ -55,11 +77,9 @@
     #viewerHostNormal { height: 100%; }
     #viewerHostAuto { height: 100%; }
 
-    /* Este “shell” se mueve entre normal y auto */
     #viewerShell { position: relative; height: 100%; background:#111; }
     #viewer { height: 100%; background:#111; }
 
-    /* Bloqueo interacción visor */
     #viewerLockOverlay {
       position:absolute; inset:0;
       display:none;
@@ -83,7 +103,6 @@
     body.autoUI #left { display:none; }
     body.autoUI #wrap { grid-template-columns: 1fr; }
 
-    /* Auto vertical: MAPA 50% / BAR / FOTOS 50% */
     body.autoUI #autoLayout{
       display:grid;
       grid-template-rows: 1fr 64px 1fr;
@@ -127,6 +146,7 @@
       color:#fff;
       flex: 0 0 auto;
     }
+
     #autoStats{
       display:flex;
       gap:10px;
@@ -153,7 +173,6 @@
       background:#111;
     }
 
-    /* AUTO horizontal: MAPA | FOTOS + barra abajo */
     @media (orientation: landscape) {
       body.autoUI #autoLayout{
         grid-template-columns: 1fr 1fr;
@@ -200,29 +219,14 @@
           <button class="secondary" id="stop">Parar</button>
         </div>
 
+        <!-- SOLO caminar/correr -->
         <div class="controlLine">
-          <span class="badge">Velocidad</span>
-          <input id="speed" type="range" min="3" max="6" step="0.1" value="5" />
-          <span class="badge"><span id="speedVal">5.0</span> km/h</span>
-          <span class="badge">Modo: <span id="modeVal">—</span></span>
-        </div>
-
-        <div class="controlLine">
-          <span class="badge">Zancada</span>
-          <input id="stride" type="range" min="0.6" max="1.2" step="0.05" value="0.9" />
-          <span class="badge"><span id="strideVal">0.90</span> m</span>
-          <span class="mini">(ajusta sensación real)</span>
-        </div>
-
-        <div class="controlLine">
-          <span class="badge">Objetivo</span>
-          <select id="goalType">
-            <option value="none">Sin objetivo</option>
-            <option value="time">Tiempo (min)</option>
-            <option value="distance">Distancia (km)</option>
-          </select>
-          <input id="goalValue" type="number" min="1" step="1" value="30" style="width:110px" />
-          <span class="mini">Se para solo al cumplirlo</span>
+          <span class="badge">Modo</span>
+          <div class="modePill" role="group" aria-label="Modo caminar/correr">
+            <button id="btnWalk" class="active" type="button">Caminar</button>
+            <button id="btnRun" type="button">Correr</button>
+          </div>
+          <span class="badge">Vel: <span id="modeSpeedLabel">5.0</span> km/h</span>
         </div>
 
         <div class="controlLine">
@@ -244,7 +248,7 @@
         </div>
 
         <div id="status">Escribe De/A y pulsa “Cargar ruta”.</div>
-        <div id="note">En Auto: fullscreen + no apagado + PAUSA + ruta hecha/restante.</div>
+        <div id="note">Auto: fullscreen + no apagado + PAUSA + ruta hecha/restante. Modo caminar/correr fija la velocidad.</div>
       </header>
 
       <div id="map"></div>
@@ -291,6 +295,13 @@
   <script>
     // ========= CONFIG =========
     const MAPILLARY_TOKEN = "MLY|25469536246042332|6d26d9d265792255146c082c531f00bf";
+
+    // Solo dos velocidades:
+    const WALK_KMH = 5.0;
+    const RUN_KMH  = 8.0; // “trote medio” (ajústalo si quieres)
+
+    // Zancada fija (ya no hay control)
+    const STRIDE_M = 0.90;
 
     const MAX_ROUTE_POINTS = 90;
     const IMAGE_UPDATE_EVERY_M = 12;
@@ -397,18 +408,6 @@
     const stopEl = document.getElementById("stop");
     const autoEl = document.getElementById("auto");
 
-    const speedEl = document.getElementById("speed");
-    const speedValEl = document.getElementById("speedVal");
-    const modeValEl = document.getElementById("modeVal");
-
-    const strideEl = document.getElementById("stride");
-    const strideValEl = document.getElementById("strideVal");
-
-    const goalTypeEl = document.getElementById("goalType");
-    const goalValueEl = document.getElementById("goalValue");
-
-    const lockViewEl = document.getElementById("lockView");
-
     const statusEl = document.getElementById("status");
     const setStatus = (t) => statusEl.textContent = t;
 
@@ -423,9 +422,16 @@
     const autoBackEl = document.getElementById("autoBack");
     const autoPauseEl = document.getElementById("autoPause");
 
+    const lockViewEl = document.getElementById("lockView");
+
+    // Modo caminar/correr
+    const btnWalk = document.getElementById("btnWalk");
+    const btnRun  = document.getElementById("btnRun");
+    const modeSpeedLabel = document.getElementById("modeSpeedLabel");
+
+    // Viewer containers
     const viewerHostNormal = document.getElementById("viewerHostNormal");
     const viewerHostAuto = document.getElementById("viewerHostAuto");
-    const viewerWrap = document.getElementById("viewerWrap");
 
     // Create viewerShell once (we move it)
     const viewerShell = document.createElement("div");
@@ -440,6 +446,22 @@
     const viewerLockOverlay = () => document.getElementById("viewerLockOverlay");
     const viewerLockedHint  = () => document.getElementById("viewerLockedHint");
 
+    // ========= MODE STATE =========
+    let currentMode = "walk"; // "walk" | "run"
+    function modeKmh() { return currentMode === "run" ? RUN_KMH : WALK_KMH; }
+    function currentSpeedMps() { return modeKmh() / 3.6; }
+    function currentStrideM() { return STRIDE_M; }
+
+    function setMode(m) {
+      currentMode = m;
+      btnWalk.classList.toggle("active", m === "walk");
+      btnRun.classList.toggle("active", m === "run");
+      modeSpeedLabel.textContent = modeKmh().toFixed(1);
+    }
+
+    btnWalk.addEventListener("click", () => setMode("walk"));
+    btnRun.addEventListener("click", () => setMode("run"));
+
     // ========= LEAFLET (map normal) =========
     const map = L.map("map").setView([40.4168, -3.7038], 13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -448,8 +470,6 @@
     }).addTo(map);
 
     let marker = null;
-
-    // Rutas en dos colores (normal)
     let lineDone = null;
     let lineRemain = null;
 
@@ -458,8 +478,6 @@
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(autoMap);
 
     let autoMarker = null;
-
-    // Rutas en dos colores (auto)
     let autoLineDone = null;
     let autoLineRemain = null;
 
@@ -490,8 +508,6 @@
 
     // ========= HELPERS =========
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-    function currentSpeedMps() { return parseFloat(speedEl.value) / 3.6; }
-    function currentStrideM() { return parseFloat(strideEl.value); }
 
     function haversineMeters(lat1, lon1, lat2, lon2) {
       const R = 6371000;
@@ -523,7 +539,7 @@
 
     // ========= STATE =========
     let routePoints = [];
-    let routeLatLngsFull = []; // latlngs completas para dibujar
+    let routeLatLngsFull = [];
     let routeDistanceM = 0;
 
     let imageQueue = [];
@@ -538,7 +554,6 @@
     let pauseStartTs = null;
     let pausedTotalMs = 0;
 
-    // Para dibujar hecho/restante sin recalcular a lo bruto
     let doneLatLngs = [];
 
     function enableAuto(enabled) { autoEl.disabled = !enabled; }
@@ -565,7 +580,6 @@
 
     async function enterAutoUI() {
       document.body.classList.add("autoUI");
-      modeValEl.textContent = "Auto";
       moveViewerToAuto();
       applyViewerLock(!!lockViewEl.checked);
 
@@ -579,7 +593,6 @@
 
     async function exitAutoUI() {
       document.body.classList.remove("autoUI");
-      modeValEl.textContent = "—";
       applyViewerLock(false);
       moveViewerToNormal();
 
@@ -605,19 +618,6 @@
       pausedTotalMs = 0;
       setStatus(msg);
       await exitAutoUI();
-    }
-
-    function checkGoalAndMaybeStop(elapsedSec) {
-      const type = goalTypeEl.value;
-      const val = parseFloat(goalValueEl.value || "0");
-
-      if (type === "time" && val > 0) {
-        if ((elapsedSec/60) >= val) return "Objetivo de tiempo alcanzado.";
-      }
-      if (type === "distance" && val > 0) {
-        if ((walkedMeters/1000) >= val) return "Objetivo de distancia alcanzado.";
-      }
-      return null;
     }
 
     // ========= API: Geocode + OSRM =========
@@ -681,31 +681,23 @@
       routeLatLngsFull = latlngs.slice();
       doneLatLngs = [routeLatLngsFull[0]];
 
-      // Normal map
       if (lineDone) map.removeLayer(lineDone);
       if (lineRemain) map.removeLayer(lineRemain);
+      if (autoLineDone) autoMap.removeLayer(autoLineDone);
+      if (autoLineRemain) autoMap.removeLayer(autoLineRemain);
 
       lineDone = L.polyline(doneLatLngs, { weight: 6, opacity: 0.95 }).addTo(map);
       lineRemain = L.polyline(routeLatLngsFull, { weight: 6, opacity: 0.35 }).addTo(map);
-
-      // Auto map
-      if (autoLineDone) autoMap.removeLayer(autoLineDone);
-      if (autoLineRemain) autoMap.removeLayer(autoLineRemain);
 
       autoLineDone = L.polyline(doneLatLngs, { weight: 5, opacity: 0.95 }).addTo(autoMap);
       autoLineRemain = L.polyline(routeLatLngsFull, { weight: 5, opacity: 0.35 }).addTo(autoMap);
     }
 
     function updateSplitPolylines(currentLatLng, segIndex) {
-      // Añadimos punto actual a "done"
       doneLatLngs.push(currentLatLng);
-
-      // Remaining: desde current hasta el final
       const remain = [currentLatLng, ...routeLatLngsFull.slice(segIndex + 1)];
-
       lineDone.setLatLngs(doneLatLngs);
       lineRemain.setLatLngs(remain);
-
       autoLineDone.setLatLngs(doneLatLngs);
       autoLineRemain.setLatLngs(remain);
     }
@@ -722,18 +714,14 @@
       const result = await routeOSRM(a, b);
 
       routeDistanceM = result.distance_m;
-
       const coords = result.coords;
       const latlngs = coords.map(c => [c[1], c[0]]);
 
-      // Ajuste de vista en mapas
       map.fitBounds(L.polyline(latlngs).getBounds(), { padding: [20, 20] });
       autoMap.fitBounds(L.polyline(latlngs).getBounds(), { padding: [10, 10] });
 
-      // puntos para caminar
       routePoints = downsample(coords.map(c => ({ lon: c[0], lat: c[1] })), MAX_ROUTE_POINTS);
 
-      // reset
       walkedMeters = 0;
       imageIdx = 0;
       imageQueue = [];
@@ -744,17 +732,14 @@
       pauseStartTs = null;
       pausedTotalMs = 0;
 
-      // markers
       if (!marker) marker = L.marker([routePoints[0].lat, routePoints[0].lon]).addTo(map);
       marker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
 
       if (!autoMarker) autoMarker = L.circleMarker([routePoints[0].lat, routePoints[0].lon], { radius: 6, weight: 2 }).addTo(autoMap);
       autoMarker.setLatLng([routePoints[0].lat, routePoints[0].lon]);
 
-      // Split polylines (hecho/restante)
       initSplitPolylines(latlngs);
 
-      // imágenes
       setStatus("Buscando imágenes (Mapillary)...");
       imageQueue = await buildImageQueue(routePoints);
 
@@ -763,12 +748,12 @@
         try { await viewer.moveTo(imageQueue[0]); } catch {}
       }
 
-      // init stats
       statDistEl.textContent = `0.00 km`;
       statRemainEl.textContent = `${(routeDistanceM/1000).toFixed(2)} km`;
       statTimeEl.textContent = `0:00`;
 
       setStatus(
+        `Modo: ${currentMode === "run" ? "Correr" : "Caminar"} (${modeKmh().toFixed(1)} km/h)\n` +
         `Ruta: ${(routeDistanceM/1000).toFixed(2)} km · Imágenes: ${imageQueue.length}\n` +
         `Listo. Pulsa “Auto ⏵”.`
       );
@@ -776,7 +761,7 @@
       enableAuto(true);
     }
 
-    // ========= AUTO REAL =========
+    // ========= AUTO =========
     async function startAutoReal() {
       if (!routePoints.length) return;
       if (walking) return;
@@ -792,7 +777,6 @@
       pauseStartTs = null;
       pausedTotalMs = 0;
 
-      // primera imagen
       if (imageQueue.length > 0) {
         imageIdx = 0;
         try { await viewer.moveTo(imageQueue[0]); } catch {}
@@ -832,18 +816,13 @@
         const lat = p1.lat + (p2.lat - p1.lat) * t;
         const lon = p1.lon + (p2.lon - p1.lon) * t;
 
-        // mover markers
         if (marker) marker.setLatLng([lat, lon]);
         if (autoMarker) autoMarker.setLatLng([lat, lon]);
         autoMap.panTo([lat, lon], { animate:true, duration:0.25 });
 
-        // update ruta hecha/restante (no cada iteración para no cargar)
         drawTick++;
-        if (drawTick % 4 === 0) {
-          updateSplitPolylines([lat, lon], segIndex);
-        }
+        if (drawTick % 4 === 0) updateSplitPolylines([lat, lon], segIndex);
 
-        // imagen cada X metros
         if (imageQueue.length > 1) {
           if (walkedMeters % IMAGE_UPDATE_EVERY_M < STEP) {
             imageIdx = Math.min(imageIdx + 1, imageQueue.length - 1);
@@ -851,11 +830,9 @@
           }
         }
 
-        // tiempo (sin contar pausas)
         const now = Date.now();
         const elapsedSec = (now - startTs - pausedTotalMs) / 1000;
 
-        // stats
         const done = Math.min(walkedMeters, totalM);
         const remain = Math.max(0, totalM - done);
 
@@ -863,12 +840,7 @@
         statDistEl.textContent = `${(done/1000).toFixed(2)} km`;
         statRemainEl.textContent = `${(remain/1000).toFixed(2)} km`;
 
-        const goalHit = checkGoalAndMaybeStop(elapsedSec);
-        if (goalHit) {
-          await stopAll(goalHit);
-          break;
-        }
-
+        // Delay según modo (caminar/correr)
         const delayMs = (STEP / currentSpeedMps()) * 1000;
         await sleep(delayMs);
       }
@@ -878,13 +850,6 @@
     }
 
     // ========= EVENTS =========
-    speedEl.addEventListener("input", () => {
-      speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
-    });
-    strideEl.addEventListener("input", () => {
-      strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
-    });
-
     goEl.addEventListener("click", async () => {
       try {
         const fromText = fromEl.value.trim();
@@ -924,7 +889,6 @@
       if (paused) {
         autoPauseEl.textContent = "Reanudar";
         pauseStartTs = Date.now();
-        // no tocamos walkedMeters, solo “paramos el reloj”
       } else {
         autoPauseEl.textContent = "Pausa";
         if (pauseStartTs) {
@@ -963,8 +927,7 @@
     // ========= INIT =========
     (function init() {
       initRecommended();
-      speedValEl.textContent = parseFloat(speedEl.value).toFixed(1);
-      strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
+      setMode("walk"); // default caminar
       applyViewerLock(false);
       document.body.classList.remove("autoUI");
       moveViewerToNormal();
