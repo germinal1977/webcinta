@@ -12,6 +12,7 @@
     html, body { height: 100%; margin: 0; font-family: system-ui, Arial; }
     #wrap { height: 100%; display: grid; grid-template-columns: 460px 1fr; }
 
+    /* IZQUIERDA: controles + (AHORA) fotos */
     #left { border-right: 1px solid #e5e7eb; display: grid; grid-template-rows: auto 1fr; }
     header { padding: 12px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; }
 
@@ -70,11 +71,14 @@
     #status { margin-top: 10px; font-size: 13px; color: #374151; line-height: 1.35; white-space: pre-line; }
     #note { margin-top: 6px; font-size: 12px; color:#6b7280; line-height: 1.35; }
 
-    #map { height: 100%; }
+    /* MAPA (AHORA) A LA DERECHA */
+    #map { height: 100%; width: 100%; }
 
-    /* ===== Visor normal (derecha) ===== */
+    /* ===== Contenedor derecho (mapa + auto) ===== */
     #viewerWrap { position: relative; height: 100%; background: #111; }
-    #viewerHostNormal { height: 100%; }
+
+    /* visor (Mapillary) en panel izquierdo */
+    #viewerHostNormal { height: 100%; background:#111; }
     #viewerHostAuto { height: 100%; }
 
     #viewerShell { position: relative; height: 100%; background:#111; }
@@ -186,11 +190,21 @@
       #autoBar { grid-area: bar; border-bottom:0; border-top: 1px solid rgba(255,255,255,0.12); }
     }
 
+    /* ===== MÓVIL =====
+       Antes: left era header+map y viewerWrap tenía fotos.
+       Ahora: left es header+fotos, y viewerWrap es mapa.
+       Así que ajustamos el alto del mapa y de las fotos.
+    */
     @media (max-width: 900px) {
       #wrap { grid-template-columns: 1fr; grid-template-rows: auto 260px 1fr; }
+
+      /* panel superior: header + (fotos) */
       #left { grid-template-rows: auto 260px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+
+      /* panel inferior: mapa grande */
       #viewerWrap { height: calc(100vh - 260px - 250px); min-height: 340px; }
     }
+
     @media (max-width: 520px) {
       .stat{ min-width: 86px; padding: 9px 10px; }
       .stat .v{ font-size:15px; }
@@ -251,11 +265,13 @@
         <div id="note">Auto: fullscreen + no apagado + PAUSA + ruta hecha/restante. Modo caminar/correr fija la velocidad.</div>
       </header>
 
-      <div id="map"></div>
+      <!-- ✅ CAMBIO: ahora el visor (fotos) va aquí -->
+      <div id="viewerHostNormal"></div>
     </div>
 
     <div id="viewerWrap">
-      <div id="viewerHostNormal"></div>
+      <!-- ✅ CAMBIO: el mapa grande va a la derecha -->
+      <div id="map"></div>
 
       <div id="autoLayout">
         <div id="autoMapWrap">
@@ -429,7 +445,7 @@
     const btnRun  = document.getElementById("btnRun");
     const modeSpeedLabel = document.getElementById("modeSpeedLabel");
 
-    // Viewer containers
+    // Viewer containers (ojo: el normal ahora está en el panel izquierdo)
     const viewerHostNormal = document.getElementById("viewerHostNormal");
     const viewerHostAuto = document.getElementById("viewerHostAuto");
 
