@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Web Cinta (Leaflet + Mapillary)</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -50,43 +50,62 @@
 
     #map { height: 100%; }
 
-    /* ===== VISOR NORMAL (derecha) ===== */
+    /* ===== Visor normal (derecha) ===== */
     #viewerWrap { position: relative; height: 100%; background: #111; }
-    #viewer { height: 100%; background: #111; }
+    #viewerHostNormal { height: 100%; }
+    #viewerHostAuto { height: 100%; }
 
-    /* ===== AUTO LAYOUT (tu dibujo) ===== */
+    /* Este “shell” se mueve entre normal y auto */
+    #viewerShell { position: relative; height: 100%; background:#111; }
+    #viewer { height: 100%; background:#111; }
+
+    /* Bloqueo interacción visor */
+    #viewerLockOverlay {
+      position:absolute; inset:0;
+      display:none;
+      background: rgba(0,0,0,0);
+      z-index: 50;
+    }
+    #viewerLockedHint {
+      position:absolute; left: 12px; bottom: 12px;
+      background: rgba(0,0,0,0.55);
+      color:#fff; padding:8px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      display:none;
+      z-index: 60;
+      pointer-events:none;
+    }
+
+    /* ===== AUTO layout ===== */
     #autoLayout { display:none; height:100%; }
 
-    /* Entrar en auto: ocultar panel izquierdo y usar autoLayout */
+    /* Entrar en auto: ocultar panel izquierdo */
     body.autoUI #left { display:none; }
     body.autoUI #wrap { grid-template-columns: 1fr; }
 
+    /* Auto vertical: MAPA 50% / BAR / FOTOS 50% */
     body.autoUI #autoLayout{
       display:grid;
-      grid-template-rows: 1fr 64px 1fr; /* MAPA 50% - BAR - FOTOS 50% */
+      grid-template-rows: 1fr 64px 1fr;
       height: 100vh;
       background:#111;
     }
 
-    /* En auto, el viewer NO debe ocupar pantalla completa: lo controla autoLayout */
-    body.autoUI #viewer { height:100%; }
-
-    /* Contenedor mapa auto */
     #autoMapWrap{
       position:relative;
       background:#111;
-      border-bottom:1px solid rgba(255,255,255,0.12);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
     }
     #autoMap{ width:100%; height:100%; }
 
-    /* Barra del medio */
     #autoBar{
       display:flex;
       align-items:center;
       gap:12px;
       padding: 10px 12px;
       background:#0f0f0f;
-      border-bottom:1px solid rgba(255,255,255,0.12);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
       color:#fff;
     }
     #autoBack{
@@ -120,39 +139,32 @@
     .stat .k{ font-size:11px; opacity:.85; font-weight:1000; margin-bottom:4px; }
     .stat .v{ font-size:16px; font-weight:1000; }
 
-    /* Fotos abajo */
     #autoPhotosWrap{
       position:relative;
       background:#111;
     }
 
-    /* Bloqueo interacción visor (solo auto si activas) */
-    #viewerLockOverlay {
-      position:absolute; inset:0;
-      display:none;
-      background: rgba(0,0,0,0);
-      z-index: 50;
-    }
-    #viewerLockedHint {
-      position:absolute; left: 12px; bottom: 12px;
-      background: rgba(0,0,0,0.55);
-      color:#fff; padding:8px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      display:none;
-      z-index: 60;
+    /* AUTO horizontal: MAPA | FOTOS (50/50) + barra abajo */
+    @media (orientation: landscape) {
+      body.autoUI #autoLayout{
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 72px;
+        grid-template-areas:
+          "map photos"
+          "bar bar";
+      }
+      #autoMapWrap { grid-area: map; border-bottom:0; border-right: 1px solid rgba(255,255,255,0.12); }
+      #autoPhotosWrap { grid-area: photos; }
+      #autoBar { grid-area: bar; border-bottom:0; border-top: 1px solid rgba(255,255,255,0.12); }
     }
 
-    /* En modo normal, autoLayout no pinta nada y el viewer ocupa todo */
-    body:not(.autoUI) #autoLayout{ display:none; }
-
+    /* Móvil */
     @media (max-width: 900px) {
       #wrap { grid-template-columns: 1fr; grid-template-rows: auto 260px 1fr; }
       #left { grid-template-rows: auto 260px; border-right: 0; border-bottom: 1px solid #e5e7eb; }
       #viewerWrap { height: calc(100vh - 260px - 250px); min-height: 340px; }
     }
     @media (max-width: 520px) {
-      body.autoUI #autoLayout{ grid-template-rows: 1fr 72px 1fr; }
       .stat{ min-width: 86px; padding: 9px 10px; }
       .stat .v{ font-size:15px; }
       #autoBack{ padding: 12px 12px; }
@@ -224,14 +236,17 @@
         </div>
 
         <div id="status">Escribe De/A y pulsa “Cargar ruta”.</div>
-        <div id="note">En Auto: mapa arriba, barra, fotos abajo. Mantiene pantalla encendida si el móvil lo permite.</div>
+        <div id="note">En Auto: fullscreen + mapa y fotos 50/50 + barra con métricas. Wake Lock en Android.</div>
       </header>
 
       <div id="map"></div>
     </div>
 
     <div id="viewerWrap">
-      <!-- AUTO layout (solo cuando body.autoUI) -->
+      <!-- NORMAL: el shell vive aquí -->
+      <div id="viewerHostNormal"></div>
+
+      <!-- AUTO: layout completo -->
       <div id="autoLayout">
         <div id="autoMapWrap">
           <div id="autoMap"></div>
@@ -257,13 +272,9 @@
         </div>
 
         <div id="autoPhotosWrap">
-          <div id="viewer"></div>
-          <div id="viewerLockOverlay"></div>
-          <div id="viewerLockedHint">Vista bloqueada</div>
+          <div id="viewerHostAuto"></div>
         </div>
       </div>
-
-      <!-- En modo normal, simplemente se ve el viewer (mismo div #viewer, pero autoLayout está oculto) -->
     </div>
   </div>
 
@@ -310,28 +321,65 @@
 
     // ========= Wake Lock (no apagar pantalla) =========
     let wakeLock = null;
+    let wakeTimer = null;
 
     async function requestWakeLock() {
       try {
-        if (!("wakeLock" in navigator)) return;
+        if (!("wakeLock" in navigator)) return false;
         wakeLock = await navigator.wakeLock.request("screen");
-
-        document.addEventListener("visibilitychange", async () => {
-          if (document.visibilityState === "visible" && wakeLock == null) {
-            try { wakeLock = await navigator.wakeLock.request("screen"); } catch {}
-          }
-        });
-      } catch (e) {
-        console.warn("WakeLock no disponible:", e);
+        wakeLock.addEventListener("release", () => { wakeLock = null; });
+        return true;
+      } catch {
+        wakeLock = null;
+        return false;
       }
+    }
+
+    function startWakeKeepAlive() {
+      stopWakeKeepAlive();
+      wakeTimer = setInterval(async () => {
+        if (document.visibilityState !== "visible") return;
+        if (!wakeLock) await requestWakeLock();
+      }, 20000);
+
+      document.addEventListener("visibilitychange", async () => {
+        if (document.visibilityState === "visible" && !wakeLock) {
+          await requestWakeLock();
+        }
+      });
+    }
+
+    function stopWakeKeepAlive() {
+      if (wakeTimer) { clearInterval(wakeTimer); wakeTimer = null; }
     }
 
     async function releaseWakeLock() {
       try {
+        stopWakeKeepAlive();
         if (wakeLock) {
           await wakeLock.release();
           wakeLock = null;
         }
+      } catch {}
+    }
+
+    // ========= Fullscreen (Android) =========
+    async function requestFullscreen(el) {
+      try {
+        if (document.fullscreenElement) return true;
+        const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        if (!fn) return false;
+        await fn.call(el);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    async function exitFullscreen() {
+      try {
+        const fn = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+        if (fn && document.fullscreenElement) await fn.call(document);
       } catch {}
     }
 
@@ -341,13 +389,17 @@
     const goEl = document.getElementById("go");
     const stopEl = document.getElementById("stop");
     const autoEl = document.getElementById("auto");
+
     const speedEl = document.getElementById("speed");
     const speedValEl = document.getElementById("speedVal");
     const modeValEl = document.getElementById("modeVal");
+
     const strideEl = document.getElementById("stride");
     const strideValEl = document.getElementById("strideVal");
+
     const goalTypeEl = document.getElementById("goalType");
     const goalValueEl = document.getElementById("goalValue");
+
     const lockViewEl = document.getElementById("lockView");
 
     const statusEl = document.getElementById("status");
@@ -357,15 +409,29 @@
     const loadRecommendedEl = document.getElementById("loadRecommended");
     const prefillRecommendedEl = document.getElementById("prefillRecommended");
 
-    // Stats auto bar
+    // Auto bar stats
     const statDistEl = document.getElementById("statDist");
     const statRemainEl = document.getElementById("statRemain");
     const statTimeEl = document.getElementById("statTime");
     const autoBackEl = document.getElementById("autoBack");
 
-    // Lock overlay viewer
-    const viewerLockOverlay = document.getElementById("viewerLockOverlay");
-    const viewerLockedHint  = document.getElementById("viewerLockedHint");
+    // Viewer containers
+    const viewerHostNormal = document.getElementById("viewerHostNormal");
+    const viewerHostAuto = document.getElementById("viewerHostAuto");
+    const viewerWrap = document.getElementById("viewerWrap");
+
+    // Create viewerShell once (we move it)
+    const viewerShell = document.createElement("div");
+    viewerShell.id = "viewerShell";
+    viewerShell.innerHTML = `
+      <div id="viewer"></div>
+      <div id="viewerLockOverlay"></div>
+      <div id="viewerLockedHint">Vista bloqueada</div>
+    `;
+    viewerHostNormal.appendChild(viewerShell);
+
+    const viewerLockOverlay = () => document.getElementById("viewerLockOverlay");
+    const viewerLockedHint  = () => document.getElementById("viewerLockedHint");
 
     // ========= LEAFLET (map normal izquierda) =========
     const map = L.map("map").setView([40.4168, -3.7038], 13);
@@ -377,7 +443,7 @@
     let routeLine = null;
     let marker = null;
 
-    // ========= LEAFLET (autoMap arriba en Auto) =========
+    // ========= LEAFLET (autoMap) =========
     const autoMap = L.map("autoMap", { zoomControl:false, attributionControl:false }).setView([40.4168, -3.7038], 13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(autoMap);
 
@@ -401,8 +467,13 @@
       try { autoMap.invalidateSize(); } catch {}
       try { viewer.resize(); } catch {}
     }
+
     window.addEventListener("load", () => { forceResize(); setTimeout(forceResize, 250); setTimeout(forceResize, 900); });
     window.addEventListener("resize", () => setTimeout(forceResize, 150));
+    window.addEventListener("orientationchange", () => {
+      setTimeout(forceResize, 120);
+      setTimeout(forceResize, 450);
+    });
 
     // ========= HELPERS =========
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -451,33 +522,65 @@
     function enableAuto(enabled) { autoEl.disabled = !enabled; }
 
     function applyViewerLock(locked) {
-      viewerLockOverlay.style.display = locked ? "block" : "none";
-      viewerLockedHint.style.display = locked ? "block" : "none";
+      const ov = viewerLockOverlay();
+      const hint = viewerLockedHint();
+      if (!ov || !hint) return;
+      ov.style.display = locked ? "block" : "none";
+      hint.style.display = locked ? "block" : "none";
     }
 
-    function enterAutoUI() {
+    function moveViewerToAuto() {
+      if (viewerShell.parentElement !== viewerHostAuto) {
+        viewerHostAuto.appendChild(viewerShell);
+      }
+    }
+
+    function moveViewerToNormal() {
+      if (viewerShell.parentElement !== viewerHostNormal) {
+        viewerHostNormal.appendChild(viewerShell);
+      }
+    }
+
+    async function enterAutoUI() {
       document.body.classList.add("autoUI");
       modeValEl.textContent = "Auto";
+      moveViewerToAuto();
       applyViewerLock(!!lockViewEl.checked);
-      requestWakeLock();
+
+      // Fullscreen + WakeLock (solo funciona si viene de gesto usuario)
+      await requestFullscreen(document.documentElement);
+      await requestWakeLock();
+      startWakeKeepAlive();
+
       setTimeout(forceResize, 80);
       setTimeout(forceResize, 250);
     }
 
-    function exitAutoUI() {
+    async function exitAutoUI() {
       document.body.classList.remove("autoUI");
       modeValEl.textContent = "—";
       applyViewerLock(false);
-      releaseWakeLock();
+      moveViewerToNormal();
+
+      await releaseWakeLock();
+      await exitFullscreen();
+
       setTimeout(forceResize, 80);
       setTimeout(forceResize, 250);
     }
 
-    function stopAll(msg = "Parado.") {
+    async function goHomeNormal() {
+      // “volver al inicio”: UI normal + arriba + estado base
+      await exitAutoUI();
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      setStatus("Escribe De/A y pulsa “Cargar ruta”.");
+    }
+
+    async function stopAll(msg = "Parado.") {
       walkAbort = true;
       walking = false;
       setStatus(msg);
-      exitAutoUI();
+      await exitAutoUI();
     }
 
     function checkGoalAndMaybeStop(elapsedSec) {
@@ -551,7 +654,7 @@
 
     // ========= CARGA RUTA =========
     async function loadRouteFromCoords(a, b, fromLabel, toLabel) {
-      stopAll("Cargando...");
+      await stopAll("Cargando...");
       enableAuto(false);
 
       fromEl.value = fromLabel || `${a.lat.toFixed(5)}, ${a.lon.toFixed(5)}`;
@@ -570,7 +673,7 @@
       routeLine = L.polyline(latlngs, { weight: 5 }).addTo(map);
       map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
 
-      // mapa auto arriba
+      // mapa auto
       if (autoRouteLine) autoMap.removeLayer(autoRouteLine);
       autoRouteLine = L.polyline(latlngs, { weight: 4 }).addTo(autoMap);
       autoMap.fitBounds(autoRouteLine.getBounds(), { padding: [10, 10] });
@@ -600,15 +703,15 @@
         try { await viewer.moveTo(imageQueue[0]); } catch {}
       }
 
+      // init stats
+      statDistEl.textContent = `0.00 km`;
+      statRemainEl.textContent = `${(routeDistanceM/1000).toFixed(2)} km`;
+      statTimeEl.textContent = `0:00`;
+
       setStatus(
         `Ruta: ${(routeDistanceM/1000).toFixed(2)} km · Imágenes: ${imageQueue.length}\n` +
         `Listo. Pulsa “Auto ⏵”.`
       );
-
-      // stats init
-      statDistEl.textContent = `0.00 km`;
-      statRemainEl.textContent = `${(routeDistanceM/1000).toFixed(2)} km`;
-      statTimeEl.textContent = `0:00`;
 
       enableAuto(true);
     }
@@ -618,7 +721,8 @@
       if (!routePoints.length) return;
       if (walking) return;
 
-      enterAutoUI();
+      // Entrar en auto (fullscreen + wakelock) desde gesto de usuario
+      await enterAutoUI();
 
       walking = true;
       walkAbort = false;
@@ -681,7 +785,7 @@
 
         const goalHit = checkGoalAndMaybeStop(elapsedSec);
         if (goalHit) {
-          stopAll(goalHit);
+          await stopAll(goalHit);
           break;
         }
 
@@ -691,7 +795,7 @@
       }
 
       walking = false;
-      if (!walkAbort) stopAll("¡Llegaste!");
+      if (!walkAbort) await stopAll("¡Llegaste!");
     }
 
     // ========= EVENTS =========
@@ -723,12 +827,15 @@
 
     autoEl.addEventListener("click", () => startAutoReal());
 
-    stopEl.addEventListener("click", () => {
-      stopAll("Parado.");
+    stopEl.addEventListener("click", async () => {
+      await stopAll("Parado.");
     });
 
-    autoBackEl.addEventListener("click", () => {
-      stopAll("Parado.");
+    autoBackEl.addEventListener("click", async () => {
+      // “Atrás” = salir de Auto y volver al inicio normal
+      walkAbort = true;
+      walking = false;
+      await goHomeNormal();
     });
 
     lockViewEl.addEventListener("change", () => {
@@ -764,7 +871,10 @@
       strideValEl.textContent = parseFloat(strideEl.value).toFixed(2);
       applyViewerLock(false);
 
-      // TIP: al abrir la web, redimensionar bien
+      // Estado inicial
+      document.body.classList.remove("autoUI");
+      moveViewerToNormal();
+
       setTimeout(forceResize, 250);
     })();
   </script>
